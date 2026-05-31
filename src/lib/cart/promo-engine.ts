@@ -16,7 +16,7 @@
  *   grandTotal    = subtotal - diskonNominal
  */
 
-import { CartItem, PromoRule } from '../db/database';
+import type { CartItem, PromoRule } from '../db/database';
 
 function qtyGratis(tipe: PromoRule['tipe_promo'], qty: number): number {
   if (qty <= 0) return 0;

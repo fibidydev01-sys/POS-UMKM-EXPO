@@ -203,7 +203,7 @@ export async function initDatabase(): Promise<void> {
     nama_umkm: 'Warung Saya',
     alamat: '',
     no_telp: '',
-    footer_struk: 'Terima kasih atas kunjungan Anda 🙏',
+    footer_struk: 'Terima kasih atas kunjungan Anda',
     paper_width: '58',
     app_version: 'v1.0',
     activated: '0',

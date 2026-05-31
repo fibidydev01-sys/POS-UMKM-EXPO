@@ -4,8 +4,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
+import Icon from '../ui/icon';
 import { formatRupiah } from '../../lib/utils/currency';
-import { AnalisaDiskon } from '../../lib/db/transaksi';
+import type { AnalisaDiskon } from '../../lib/db/transaksi';
 
 interface Props { data: AnalisaDiskon[]; }
 
@@ -15,7 +16,10 @@ export default function AnalisaDiskonList({ data }: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.judul}>🏷️ Analisa Diskon</Text>
+      <View style={styles.judulRow}>
+        <Icon name="tag" size={18} color={Colors.accent} />
+        <Text style={styles.judul}>Analisa Diskon</Text>
+      </View>
       <Text style={styles.subjudul}>Total diberikan bulan ini: {formatRupiah(totalSemua)}</Text>
 
       {data.map((d) => (
@@ -33,8 +37,9 @@ export default function AnalisaDiskonList({ data }: Props) {
 
 const styles = StyleSheet.create({
   card: { backgroundColor: Colors.surface, borderRadius: Radii.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
+  judulRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   judul: { fontSize: FontSize.md, fontWeight: '800', color: Colors.text },
-  subjudul: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.sm },
+  subjudul: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.sm, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
   kiri: { flex: 1 },
   nama: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },

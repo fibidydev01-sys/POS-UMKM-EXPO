@@ -6,11 +6,15 @@
  *     refundMode=false → tampilan detail (struk scrollable + aksi Void/Refund/Cetak)
  *     refundMode=true  → form alasan refund
  *
- * Struk dibungkus ScrollView; font dihitung dinamis via hitungStrukFont() agar
- * tidak wrap. Kertas (kartu putih) align ke konten tanpa fixed width. Tombol
- * aksi drawer height: 52. ✕ close sudah dihapus global di BottomSheet.
+ * PERUBAHAN v3:
+ *   - HEADER DUPLIKAT DI ATAS STRUK DIHAPUS. Sebelumnya ada baris waktu +
+ *     grand total tepat di atas kertas struk — padahal struk SUDAH memuat
+ *     nomor order, tanggal, dan total. Kini cukup: (info void/refund bila ada)
+ *     → struk → tombol aksi. Tidak ada lagi duplikasi.
+ *   - SEMUA emoji diganti ikon lucide (cetak, dll).
  *
- * Tombol & form Refund hanya tampil saat features.refund aktif (V2).
+ * Struk dibungkus ScrollView; font dihitung dinamis via hitungStrukFont().
+ * Tombol aksi drawer height: 52.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -18,10 +22,9 @@ import {
   View, Text, StyleSheet, FlatList, Pressable, Alert,
   Platform, TextInput, ScrollView, useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
-import { Transaksi, TransactionItem, UmkmConfig, PaymentMethod } from '../../lib/db/database';
+import type { Transaksi, TransactionItem, UmkmConfig, PaymentMethod } from '../../lib/db/database';
 import { getRiwayat, getItemsByTransaksi, voidTransaksi, refundTransaksi } from '../../lib/db/transaksi';
 import { getConfig } from '../../lib/db/pengaturan';
 import { features } from '../../lib/config/features';
@@ -31,7 +34,9 @@ import {
 } from '../../lib/printer/struk';
 import { formatRupiah } from '../../lib/utils/currency';
 import { formatTanggalJam } from '../../lib/utils/date';
+import ScreenLayout from '../../components/ui/screen-layout';
 import BottomSheet from '../../components/ui/bottom-sheet';
+import Icon from '../../components/ui/icon';
 import EmptyState from '../../components/shared/empty-state';
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -161,12 +166,11 @@ export default function RiwayatScreen() {
     s === 'void' ? 'VOID' : s === 'refund' ? 'REFUND' : '';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Riwayat</Text>
-        <Text style={styles.sub}>{riwayat.length} transaksi tercatat</Text>
-      </View>
-
+    <ScreenLayout
+      title="Riwayat"
+      subtitle={`${riwayat.length} transaksi tercatat`}
+      bodyPadding={0}
+    >
       <FlatList
         data={riwayat}
         keyExtractor={(t) => String(t.id)}
@@ -210,7 +214,7 @@ export default function RiwayatScreen() {
         }}
         ListEmptyComponent={
           <EmptyState
-            icon="🧾"
+            icon="receipt"
             judul="Belum ada transaksi"
             deskripsi="Transaksi yang Anda simpan di kasir akan muncul di sini."
           />
@@ -224,8 +228,9 @@ export default function RiwayatScreen() {
         title={refundMode ? 'Refund Transaksi' : detail?.nomor_order}
         headerRight={
           refundMode ? (
-            <Pressable onPress={() => setRefundMode(false)} hitSlop={8}>
-              <Text style={styles.kembaliLink}>‹ Detail</Text>
+            <Pressable onPress={() => setRefundMode(false)} hitSlop={8} style={styles.kembaliRow}>
+              <Icon name="chevron-left" size={18} color={Colors.primary} />
+              <Text style={styles.kembaliLink}>Detail</Text>
             </Pressable>
           ) : detail && detail.status !== 'completed' ? (
             <View style={[styles.voidBadge, detail.status === 'refund' && styles.refundBadge]}>
@@ -268,22 +273,9 @@ export default function RiwayatScreen() {
             </View>
           </View>
         ) : (
-          /* ── MODE detail ── */
+          /* ── MODE detail ── (tanpa header duplikat) */
           <View style={styles.detailBody}>
-            {/* Header info transaksi */}
-            <View style={styles.detailHead}>
-              <Text style={styles.detailWaktu}>
-                {detail && formatTanggalJam(detail.created_at)}
-              </Text>
-              <Text style={[
-                styles.detailGrandTotal,
-                detail?.status !== 'completed' && styles.detailGrandTotalVoid,
-              ]}>
-                {detail && formatRupiah(detail.grand_total)}
-              </Text>
-            </View>
-
-            {/* Info void/refund jika ada */}
+            {/* Info void/refund jika ada — info yang TIDAK ada di struk. */}
             {detail && detail.status !== 'completed' && detail.void_reason && (
               <View style={[styles.voidInfo, detail.status === 'refund' && styles.refundInfo]}>
                 <Text style={[styles.voidInfoTeks, detail.status === 'refund' && styles.refundInfoTeks]}>
@@ -338,21 +330,19 @@ export default function RiwayatScreen() {
                 onPress={cetakUlang}
                 disabled={mencetak}
               >
-                <Text style={styles.aksiCetakTxt}>{mencetak ? 'Mencetak…' : '🖨  Cetak'}</Text>
+                <Icon name="printer" size={18} color={Colors.onPrimary} />
+                <Text style={styles.aksiCetakTxt}>{mencetak ? 'Mencetak…' : 'Cetak'}</Text>
               </Pressable>
             </View>
           </View>
         )}
       </BottomSheet>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md },
-  title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
-  sub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
+  kembaliRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   kembaliLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '700' },
 
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.sm },
@@ -382,19 +372,13 @@ const styles = StyleSheet.create({
   refundBadgeTeks: { color: Colors.warning },
   rowMeta: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
 
-  // ── Detail mode ──
+  // ── Detail mode ── (tanpa detailHead)
   detailBody: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
   },
-  detailHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-  },
-  detailWaktu: { fontSize: FontSize.sm, color: Colors.textMuted },
-  detailGrandTotal: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.primary },
-  detailGrandTotalVoid: { textDecorationLine: 'line-through', color: Colors.textMuted },
   voidInfo: {
     backgroundColor: Colors.dangerSoft, borderRadius: Radii.md,
     padding: Spacing.md, marginBottom: Spacing.sm,
@@ -403,7 +387,7 @@ const styles = StyleSheet.create({
   refundInfo: { backgroundColor: Colors.warningSoft },
   refundInfoTeks: { color: Colors.warning },
 
-  // Struk: ScrollView mengisi ruang antara detailHead dan aksiRow.
+  // Struk: ScrollView mengisi ruang antara atas dan aksiRow.
   strukScroll: { flex: 1, marginBottom: Spacing.sm },
   strukScrollContent: {
     alignItems: 'center',
@@ -429,6 +413,8 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
   aksiVoid: { backgroundColor: Colors.dangerSoft, paddingHorizontal: Spacing.lg },
   aksiVoidTxt: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.md },

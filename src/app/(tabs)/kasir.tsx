@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 // SDK 56: expo-router tidak lagi izinkan import dari @react-navigation/* di kode app.
 // Hook ini sekarang di-re-export dari 'expo-router/js-tabs' (runtime API sama persis).
@@ -8,7 +7,7 @@ import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatRupiah } from '../../lib/utils/currency';
-import {
+import type {
   MenuItem, CartItem, UmkmConfig, Transaksi, TransactionItem, DiskonPreset,
   PromoRule, PaymentMethod, Kategori,
 } from '../../lib/db/database';
@@ -21,6 +20,7 @@ import { applyPromo, hitungGrandTotal } from '../../lib/cart/promo-engine';
 import { features } from '../../lib/config/features';
 import { cetakStruk, connectPrinter, getPairedDevices, printerTersedia } from '../../lib/printer/struk';
 
+import ScreenLayout from '../../components/ui/screen-layout';
 import MenuList from '../../components/kasir/menu-list';
 import KeranjangPanel from '../../components/kasir/keranjang-panel';
 import StrukPreview from '../../components/kasir/struk-preview';
@@ -77,12 +77,6 @@ export default function KasirScreen() {
     () => (kategoriAktif === null ? menu : menu.filter((m) => m.kategori_id === kategoriAktif)),
     [menu, kategoriAktif]
   );
-
-  const namaKategoriMap = useMemo(() => {
-    const map = new Map<number, string>();
-    kategori.forEach((k) => map.set(k.id, k.nama));
-    return map;
-  }, [kategori]);
 
   const qtyMap = useMemo(() => {
     const map: Record<number, number> = {};
@@ -192,20 +186,33 @@ export default function KasirScreen() {
     }
   };
 
-  // Cart bar didock TEPAT di atas tab bar memakai tinggi NYATA tab bar +
-  // sedikit jarak. Hasilnya bar rapi menggantung di atas mobile nav.
+  // Cart bar didock TEPAT di atas tab bar memakai tinggi NYATA tab bar.
   const cartBarBottom = tabBarHeight + Spacing.sm;
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Kasir</Text>
-        <Text style={styles.sub}>Pilih produk untuk mulai transaksi</Text>
+  // Bar keranjang melayang — nempel rapi di atas tab bar (mobile nav).
+  const cartBar = (cartRaw.length > 0 && !keranjangBuka) ? (
+    <Pressable
+      onPress={() => setKeranjangBuka(true)}
+      style={({ pressed }) => [styles.cartBar, { bottom: cartBarBottom }, pressed && styles.cartPressed]}
+    >
+      <View style={styles.cartBadge}>
+        <Text style={styles.cartBadgeTeks}>{totalQty}</Text>
       </View>
+      <Text style={styles.cartLabel}>Lihat Keranjang</Text>
+      <Text style={styles.cartTotal}>{formatRupiah(grandTotal)}</Text>
+    </Pressable>
+  ) : null;
 
+  return (
+    <ScreenLayout
+      title="Kasir"
+      subtitle="Pilih produk untuk mulai transaksi"
+      bodyPadding={0}
+      floating={cartBar}
+    >
       {menu.length === 0 ? (
         <EmptyState
-          icon="🍽️"
+          icon="menu"
           judul="Belum ada produk"
           deskripsi="Tambahkan produk di tab Menu agar bisa mulai berjualan."
         />
@@ -219,7 +226,7 @@ export default function KasirScreen() {
 
           {menuTampil.length === 0 ? (
             <EmptyState
-              icon="🔎"
+              icon="search"
               judul="Tidak ada di kategori ini"
               deskripsi="Pilih kategori lain untuk melihat produk yang tersedia."
             />
@@ -227,27 +234,12 @@ export default function KasirScreen() {
             <MenuList
               items={menuTampil}
               qtyMap={qtyMap}
-              namaKategoriMap={namaKategoriMap}
               onTambah={tambah}
               onKurang={kurang}
               bottomInset={tabBarHeight + 72}
             />
           )}
         </>
-      )}
-
-      {/* Bar keranjang melayang — nempel rapi di atas tab bar (mobile nav). */}
-      {cartRaw.length > 0 && !keranjangBuka && (
-        <Pressable
-          onPress={() => setKeranjangBuka(true)}
-          style={({ pressed }) => [styles.cartBar, { bottom: cartBarBottom }, pressed && styles.cartPressed]}
-        >
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeTeks}>{totalQty}</Text>
-          </View>
-          <Text style={styles.cartLabel}>Lihat Keranjang</Text>
-          <Text style={styles.cartTotal}>{formatRupiah(grandTotal)}</Text>
-        </Pressable>
       )}
 
       <KeranjangPanel
@@ -273,15 +265,11 @@ export default function KasirScreen() {
         onCetak={cetak}
         onSelesai={() => setStrukBuka(false)}
       />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md },
-  title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
-  sub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
   kategoriBar: { paddingLeft: Spacing.lg, paddingBottom: Spacing.sm },
   cartBar: {
     position: 'absolute', left: Spacing.lg, right: Spacing.lg,

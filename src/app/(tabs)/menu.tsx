@@ -1,15 +1,18 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
-import { Kategori, MenuItem } from '../../lib/db/database';
+import type { Kategori, MenuItem } from '../../lib/db/database';
+import type {
+  MenuItemInput} from '../../lib/db/menu';
 import {
   getKategori, tambahKategori, hapusKategori,
-  getMenuItems, tambahMenuItem, updateMenuItem, toggleTersedia, hapusMenuItem,
-  MenuItemInput,
+  getMenuItems, tambahMenuItem, updateMenuItem, toggleTersedia, hapusMenuItem
 } from '../../lib/db/menu';
+import ScreenLayout from '../../components/ui/screen-layout';
 import BottomSheet from '../../components/ui/bottom-sheet';
+import Icon from '../../components/ui/icon';
+import PickerRow from '../../components/ui/picker-row';
 import KategoriList from '../../components/menu/kategori-list';
 import MenuItemCard from '../../components/menu/menu-item-card';
 import FormMenuItem from '../../components/menu/form-menu-item';
@@ -116,18 +119,26 @@ export default function MenuScreen() {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Menu</Text>
-          <Text style={styles.sub}>{menu.length} produk · {kategori.length} kategori</Text>
-        </View>
-        <Pressable style={styles.kelolaBtn} onPress={() => setKatVisible(true)}>
-          <Text style={styles.kelolaTxt}>Kategori</Text>
-        </Pressable>
-      </View>
+  const headerRight = (
+    <Pressable style={styles.kelolaBtn} onPress={() => setKatVisible(true)}>
+      <Text style={styles.kelolaTxt}>Kategori</Text>
+    </Pressable>
+  );
 
+  const fab = (
+    <Pressable style={styles.fab} onPress={bukaTambah}>
+      <Icon name="plus" size={28} color={Colors.onPrimary} strokeWidth={2.6} />
+    </Pressable>
+  );
+
+  return (
+    <ScreenLayout
+      title="Menu"
+      subtitle={`${menu.length} produk · ${kategori.length} kategori`}
+      headerRight={headerRight}
+      bodyPadding={0}
+      floating={fab}
+    >
       {kategori.length > 0 && (
         <View style={styles.filterWrap}>
           <KategoriList kategori={kategori} aktif={filter} onPilih={setFilter} />
@@ -148,7 +159,7 @@ export default function MenuScreen() {
         )}
         ListEmptyComponent={
           <EmptyState
-            icon="🍽️"
+            icon="menu"
             judul={menu.length === 0 ? 'Belum ada menu' : 'Tidak ada di kategori ini'}
             deskripsi={
               menu.length === 0
@@ -163,10 +174,6 @@ export default function MenuScreen() {
         }
       />
 
-      <Pressable style={styles.fab} onPress={bukaTambah}>
-        <Text style={styles.fabTxt}>＋</Text>
-      </Pressable>
-
       {/* Form tambah/edit */}
       <FormMenuItem
         visible={formVisible}
@@ -177,12 +184,11 @@ export default function MenuScreen() {
         onHapus={itemEdit ? hapusItem : undefined}
       />
 
-      {/* Kelola kategori (sheet native, tanpa ✕ — header tetap tampil karena ada title) */}
+      {/* Kelola kategori — DESAIN MIRIP PICKER DISKON (baris seragam PickerRow). */}
       <BottomSheet
         visible={katVisible}
         onClose={() => setKatVisible(false)}
         title="Kelola Kategori"
-        snapPoints={['half', 'full']}
       >
         <View style={styles.katBody}>
           <View style={styles.katInputRow}>
@@ -204,36 +210,26 @@ export default function MenuScreen() {
             data={kategori}
             keyExtractor={(k) => String(k.id)}
             style={styles.katList}
+            contentContainerStyle={styles.katListContent}
+            showsVerticalScrollIndicator={false}
             ListEmptyComponent={<Text style={styles.katKosong}>Belum ada kategori.</Text>}
             renderItem={({ item }) => (
-              <View style={styles.katRow}>
-                <Text style={styles.katNama}>{item.nama}</Text>
-                <Pressable hitSlop={8} onPress={() => konfirmasiHapusKategori(item)}>
-                  <Text style={styles.katHapus}>Hapus</Text>
-                </Pressable>
-              </View>
+              <PickerRow label={item.nama} onDelete={() => konfirmasiHapusKategori(item)} />
             )}
           />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md,
-  },
-  title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
-  sub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
   kelolaBtn: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radii.full,
   },
   kelolaTxt: { color: Colors.accent, fontWeight: '700', fontSize: FontSize.sm },
-  filterWrap: { paddingBottom: Spacing.sm },
+  filterWrap: { paddingLeft: Spacing.lg, paddingBottom: Spacing.sm },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: 120, gap: Spacing.sm },
   emptyBtn: {
     backgroundColor: Colors.primary, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
@@ -248,10 +244,10 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 12,
   },
-  fabTxt: { color: Colors.onPrimary, fontSize: 32, fontWeight: '300', marginTop: -2 },
 
-  katBody: { flex: 1, paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  katBody: { flex: 1, paddingHorizontal: Spacing.xl, gap: Spacing.md },
   katList: { flex: 1 },
+  katListContent: { paddingBottom: Spacing.lg },
   katInputRow: { flexDirection: 'row', gap: Spacing.sm },
   katInput: {
     flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
@@ -264,10 +260,4 @@ const styles = StyleSheet.create({
   },
   katAddTxt: { color: Colors.onPrimary, fontWeight: '700' },
   katKosong: { color: Colors.textMuted, paddingVertical: Spacing.md, textAlign: 'center' },
-  katRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  katNama: { fontSize: FontSize.md, color: Colors.text, fontWeight: '600' },
-  katHapus: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.sm },
 });

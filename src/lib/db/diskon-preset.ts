@@ -5,7 +5,8 @@
  *   tambahDiskonPreset(nama, persen)
  *   updateDiskonPreset(id, nama, persen)
  */
-import { getDb, DiskonPreset } from './database';
+import type { DiskonPreset } from './database';
+import { getDb } from './database';
 
 export async function getDiskonPreset(): Promise<DiskonPreset[]> {
   const db = getDb();

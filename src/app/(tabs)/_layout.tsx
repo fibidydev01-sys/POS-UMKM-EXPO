@@ -1,14 +1,13 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize } from '../../constants/colors';
+import type { IconName } from '../../components/ui/icon';
+import Icon from '../../components/ui/icon';
 
-/** Tab icon berbasis emoji — ringan, tanpa dependency icon set. */
-function TabIcon({ emoji, color, focused }: { emoji: string; color: string; focused: boolean }) {
-  return (
-    <Text style={{ fontSize: focused ? 24 : 21, opacity: focused ? 1 : 0.55 }}>{emoji}</Text>
-  );
+/** Tab icon berbasis lucide — tajam, konsisten dengan ikon lain di app. */
+function TabIcon({ name, color, focused }: { name: IconName; color: string; focused: boolean }) {
+  return <Icon name={name} size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.6 : 2.2} />;
 }
 
 /**
@@ -41,23 +40,23 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: 'Beranda', tabBarIcon: (p) => <TabIcon emoji="🏠" {...p} /> }}
+        options={{ title: 'Beranda', tabBarIcon: (p) => <TabIcon name="home" {...p} /> }}
       />
       <Tabs.Screen
         name="kasir"
-        options={{ title: 'Kasir', tabBarIcon: (p) => <TabIcon emoji="🛒" {...p} /> }}
+        options={{ title: 'Kasir', tabBarIcon: (p) => <TabIcon name="cart" {...p} /> }}
       />
       <Tabs.Screen
         name="menu"
-        options={{ title: 'Menu', tabBarIcon: (p) => <TabIcon emoji="🍽️" {...p} /> }}
+        options={{ title: 'Menu', tabBarIcon: (p) => <TabIcon name="menu" {...p} /> }}
       />
       <Tabs.Screen
         name="riwayat"
-        options={{ title: 'Riwayat', tabBarIcon: (p) => <TabIcon emoji="🧾" {...p} /> }}
+        options={{ title: 'Riwayat', tabBarIcon: (p) => <TabIcon name="receipt" {...p} /> }}
       />
       <Tabs.Screen
         name="pengaturan"
-        options={{ title: 'Pengaturan', tabBarIcon: (p) => <TabIcon emoji="⚙️" {...p} /> }}
+        options={{ title: 'Pengaturan', tabBarIcon: (p) => <TabIcon name="settings" {...p} /> }}
       />
     </Tabs>
   );

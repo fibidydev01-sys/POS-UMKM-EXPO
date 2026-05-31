@@ -4,6 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
+import Icon from '../ui/icon';
 
 interface Props {
   onBackup: () => void;
@@ -14,7 +15,10 @@ export default function AlertBackup({ onBackup, onTutup }: Props) {
   return (
     <View style={styles.box}>
       <View style={styles.kiri}>
-        <Text style={styles.judul}>💾 Sudah backup data?</Text>
+        <View style={styles.judulRow}>
+          <Icon name="save" size={18} color={Colors.warning} />
+          <Text style={styles.judul}>Sudah backup data?</Text>
+        </View>
         <Text style={styles.teks}>
           Amankan transaksi Anda ke Excel. Tersimpan di HP, bisa hilang jika aplikasi dihapus.
         </Text>
@@ -37,6 +41,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg, borderWidth: 1, borderColor: '#F0D9A8',
   },
   kiri: { gap: Spacing.xs },
+  judulRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   judul: { fontSize: FontSize.md, fontWeight: '800', color: Colors.warning },
   teks: { fontSize: FontSize.sm, color: '#8A6D1F', lineHeight: 19 },
   aksiRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },

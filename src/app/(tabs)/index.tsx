@@ -1,18 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Colors, FontSize, Spacing } from '../../constants/colors';
 import { formatRupiah } from '../../lib/utils/currency';
 import { sapaan } from '../../lib/utils/date';
+import type {
+  RingkasanOmzet, TopProduk, AnalisaDiskon} from '../../lib/db/transaksi';
 import {
-  getRingkasanOmzet, getTopProduk, getAnalisaDiskon,
-  RingkasanOmzet, TopProduk, AnalisaDiskon,
+  getRingkasanOmzet, getTopProduk, getAnalisaDiskon
 } from '../../lib/db/transaksi';
-import { getOmzetDuaMinggu, OmzetHari } from '../../lib/db/omzet-banding';
+import type { OmzetHari } from '../../lib/db/omzet-banding';
+import { getOmzetDuaMinggu } from '../../lib/db/omzet-banding';
 import { getConfig } from '../../lib/db/pengaturan';
 
+import ScreenLayout from '../../components/ui/screen-layout';
 import StatCard from '../../components/dashboard/stat-card';
 import ChartOmzet from '../../components/dashboard/chart-omzet';
 import TopProdukList from '../../components/dashboard/top-produk';
@@ -55,7 +57,7 @@ export default function DashboardScreen() {
   const adaBogo = (ringkasan?.jumlahItemGratisBulan ?? 0) > 0;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <ScreenLayout edges={['top']} bodyPadding={0}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -63,24 +65,24 @@ export default function DashboardScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.sapaan}>{sapaan()},</Text>
-          <Text style={styles.nama} numberOfLines={1}>{nama || 'Juragan'} 👋</Text>
+          <Text style={styles.nama} numberOfLines={1}>{nama || 'Juragan'}</Text>
         </View>
 
         <StatCard
           label="OMZET HARI INI"
           nilai={formatRupiah(ringkasan?.hariIni ?? 0)}
           sub={`${ringkasan?.orderHariIni ?? 0} transaksi hari ini`}
-          icon="💰"
+          icon="wallet"
           highlight
         />
 
         <View style={styles.row2}>
-          <StatCard label="MINGGU INI" nilai={formatRupiah(ringkasan?.mingguIni ?? 0)} icon="📅" />
+          <StatCard label="MINGGU INI" nilai={formatRupiah(ringkasan?.mingguIni ?? 0)} icon="calendar" />
           <StatCard
             label="BULAN INI"
             nilai={formatRupiah(ringkasan?.bulanIni ?? 0)}
             sub={`${ringkasan?.orderBulanIni ?? 0} order`}
-            icon="📈"
+            icon="trending-up"
           />
         </View>
 
@@ -91,7 +93,7 @@ export default function DashboardScreen() {
                 label="REFUND BULAN INI"
                 nilai={formatRupiah(ringkasan?.refundBulan ?? 0)}
                 sub={`${ringkasan?.jumlahRefundBulan ?? 0} transaksi`}
-                icon="↩️"
+                icon="undo"
               />
             )}
             {adaBogo && (
@@ -99,7 +101,7 @@ export default function DashboardScreen() {
                 label="NILAI BOGO BULAN INI"
                 nilai={formatRupiah(ringkasan?.nilaiBogoBulan ?? 0)}
                 sub={`${ringkasan?.jumlahItemGratisBulan ?? 0} item digratiskan`}
-                icon="🎁"
+                icon="gift"
               />
             )}
           </View>
@@ -128,12 +130,11 @@ export default function DashboardScreen() {
 
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: Spacing.lg },
   header: { marginBottom: Spacing.lg },
   sapaan: { fontSize: FontSize.md, color: Colors.textMuted },

@@ -1,5 +1,7 @@
 /**
  * Layar aktivasi lisensi (offline). Masukkan kode → validasi lokal → simpan.
+ *
+ * PERUBAHAN: ikon 🔑 (emoji) diganti ikon vektor lucide (key) dalam lingkaran.
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
@@ -7,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../constants/colors';
 import InputOTP from '../components/ui/input-otp';
+import Icon from '../components/ui/icon';
 import { aktivasi } from '../lib/aktivasi/aktivasi';
 
 export default function AktivasiScreen() {
@@ -34,7 +37,9 @@ export default function AktivasiScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <View style={styles.body}>
-          <Text style={styles.icon}>🔑</Text>
+          <View style={styles.iconWrap}>
+            <Icon name="key" size={40} color={Colors.primary} strokeWidth={2.2} />
+          </View>
           <Text style={styles.judul}>Aktivasi Aplikasi</Text>
           <Text style={styles.deskripsi}>
             Masukkan kode aktivasi yang Anda terima. Bayar sekali, pakai selamanya — tanpa internet.
@@ -71,7 +76,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   flex: { flex: 1 },
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
-  icon: { fontSize: 56 },
+  iconWrap: {
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: Colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
   judul: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
   deskripsi: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20, maxWidth: 320, marginBottom: Spacing.lg },
   prefixRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl },

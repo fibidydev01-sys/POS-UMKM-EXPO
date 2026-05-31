@@ -3,6 +3,8 @@
 # collect-files.sh — POS UMKM File Collector
 # Run from: d:/BOILERPLATE/pos-umkm
 # Output  : collection/COLLECT-<timestamp>.txt
+#           collection/typecheck-<timestamp>.txt
+#           collection/lint-<timestamp>.txt
 # Skip    : assets/, node_modules/, .gitignore,
 #            pnpm-lock.yaml, LICENSE, *.lock
 # ================================================================
@@ -49,15 +51,43 @@ read -r INPUT
 
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 FILE="$OUT/COLLECT-${TIMESTAMP}.txt"
+TC_FILE="$OUT/typecheck-${TIMESTAMP}.txt"
+LINT_FILE="$OUT/lint-${TIMESTAMP}.txt"
 FOUND=0; MISSING=0; TOTAL=0
+
+# ── typecheck + lint dulu sebelum collect ────────────────────────
+echo ""
+echo -e "${BOLD}▶ Running typecheck...${RESET}"
+npm run typecheck 2>&1 | tee "$TC_FILE"
+TC_EXIT=${PIPESTATUS[0]}
+if [ $TC_EXIT -eq 0 ]; then
+  echo -e "  ${GREEN}✓ Typecheck PASSED${RESET}"
+else
+  echo -e "  ${RED}✗ Typecheck FAILED — lihat $TC_FILE${RESET}"
+fi
+
+echo ""
+echo -e "${BOLD}▶ Running lint...${RESET}"
+npm run lint 2>&1 | tee "$LINT_FILE"
+LINT_EXIT=${PIPESTATUS[0]}
+if [ $LINT_EXIT -eq 0 ]; then
+  echo -e "  ${GREEN}✓ Lint PASSED${RESET}"
+else
+  echo -e "  ${RED}✗ Lint FAILED — lihat $LINT_FILE${RESET}"
+fi
+
+echo ""
+echo -e "${BOLD}▶ Collecting source files...${RESET}"
 
 {
 echo "################################################################"
 echo "##  POS UMKM — SOURCE COLLECTION"
-echo "##  Generated : $(date '+%Y-%m-%d %H:%M:%S')"
-echo "##  Selection : $INPUT"
-echo "##  Skipped   : assets/, node_modules/, .gitignore,"
-echo "##              pnpm-lock.yaml, LICENSE, *.lock, root files"
+echo "##  Generated  : $(date '+%Y-%m-%d %H:%M:%S')"
+echo "##  Selection  : $INPUT"
+echo "##  Typecheck  : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "##  Lint       : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "##  Skipped    : assets/, node_modules/, .gitignore,"
+echo "##               pnpm-lock.yaml, LICENSE, *.lock, root files"
 echo "################################################################"
 echo ""
 } > "$FILE"
@@ -209,8 +239,13 @@ echo -e "${BOLD}═════════════════════�
 echo -e "  ${GREEN}✓ Found   : $FOUND / $TOTAL${RESET}"
 echo -e "  ${RED}✗ Missing : $MISSING${RESET}"
 echo -e "  Coverage  : $pct%"
+echo -e "${BOLD}────────────────────────────────────${RESET}"
+echo -e "  Typecheck : $([ $TC_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
+echo -e "  Lint      : $([ $LINT_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
 echo -e "${BOLD}════════════════════════════════════${RESET}"
-echo -e "  Output: ${CYAN}$FILE${RESET}"
+echo -e "  Collect : ${CYAN}$FILE${RESET}"
+echo -e "  TC      : ${CYAN}$TC_FILE${RESET}"
+echo -e "  Lint    : ${CYAN}$LINT_FILE${RESET}"
 echo ""
 
 {
@@ -218,7 +253,9 @@ echo ""
 echo "################################################################"
 echo "##  SUMMARY"
 echo "################################################################"
-echo "Found   : $FOUND / $TOTAL"
-echo "Missing : $MISSING"
-echo "Coverage: $pct%"
+echo "Found     : $FOUND / $TOTAL"
+echo "Missing   : $MISSING"
+echo "Coverage  : $pct%"
+echo "Typecheck : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "Lint      : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 } >> "$FILE"

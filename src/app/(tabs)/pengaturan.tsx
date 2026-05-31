@@ -3,19 +3,15 @@
  *
  * @expo/ui (sheet native): Preset diskon (daftar) + form tambah/edit jadi SATU
  * sheet dengan TUKAR-ISI (state `presetFormMode`). Bukan dua sheet bertumpuk.
- *     presetFormMode=false → daftar preset (headerRight "+ Tambah")
- *     presetFormMode=true  → form preset (headerRight "‹ Daftar")
+ *     presetFormMode=false → daftar preset (headerRight "Tambah")
+ *     presetFormMode=true  → form preset (headerRight "Daftar")
  *
- * PERBAIKAN BUG "Cannot read property 'trim' of undefined" + profil tidak bisa diisi:
- *   - Field config dibaca dengan nama KANONIK: nama_umkm / alamat / no_telp /
- *     footer_struk / paper_width (sesuai database.ts & type UmkmConfig).
- *     Sebelumnya membaca c.nama_usaha / c.telepon / c.lebar_kertas (undefined)
- *     sehingga input kosong & updateProfil menerima undefined → crash .trim().
- *   - simpanProfil mengirim { nama_umkm, alamat, no_telp, footer_struk, paper_width }.
- *   - gantiLebar mengirim { paper_width } (bukan lebar_kertas).
- *   - Preset diskon memakai signature posisional (nama, persen) / (id, nama, persen).
- *
- * Catatan UI: tombol drawer height: 52 untuk konsistensi.
+ * PERUBAHAN v3:
+ *   - Pakai ScreenLayout (header konsisten).
+ *   - Daftar preset diskon memakai PickerRow → seragam dengan kategori & picker.
+ *   - SEMUA emoji/teks-ikon (chevron, panah export/import, plus) diganti ikon lucide.
+ *   - Field config tetap KANONIK: nama_umkm / alamat / no_telp / footer_struk /
+ *     paper_width (sesuai database.ts & type UmkmConfig).
  */
 
 import React, { useCallback, useState } from 'react';
@@ -23,17 +19,20 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
-import { UmkmConfig, DiskonPreset } from '../../lib/db/database';
+import type { UmkmConfig, DiskonPreset } from '../../lib/db/database';
 import { getConfig, updateProfil } from '../../lib/db/pengaturan';
 import {
   getDiskonPreset, tambahDiskonPreset, updateDiskonPreset, hapusDiskonPreset,
 } from '../../lib/db/diskon-preset';
 import { exportExcel, importExcel } from '../../lib/export/excel';
 import { features } from '../../lib/config/features';
+import ScreenLayout from '../../components/ui/screen-layout';
 import BottomSheet from '../../components/ui/bottom-sheet';
+import type { IconName } from '../../components/ui/icon';
+import Icon from '../../components/ui/icon';
+import PickerRow from '../../components/ui/picker-row';
 
 export default function PengaturanScreen() {
   const router = useRouter();
@@ -41,8 +40,6 @@ export default function PengaturanScreen() {
   const [config, setConfig] = useState<UmkmConfig | null>(null);
   const [presets, setPresets] = useState<DiskonPreset[]>([]);
 
-  // State lokal form profil. Nama variabel boleh apa saja; yang penting
-  // pemetaan ke field DB benar saat baca (muat) & tulis (simpanProfil).
   const [namaUsaha, setNamaUsaha] = useState('');
   const [alamat, setAlamat] = useState('');
   const [telepon, setTelepon] = useState('');
@@ -65,7 +62,6 @@ export default function PengaturanScreen() {
     setConfig(c);
     setPresets(p);
     if (c) {
-      // BACA field kanonik (bukan nama_usaha/telepon/lebar_kertas).
       setNamaUsaha(c.nama_umkm ?? '');
       setAlamat(c.alamat ?? '');
       setTelepon(c.no_telp ?? '');
@@ -78,7 +74,6 @@ export default function PengaturanScreen() {
 
   const simpanProfil = async () => {
     if (!namaUsaha.trim()) { Alert.alert('Nama usaha wajib', 'Isi nama usaha terlebih dahulu.'); return; }
-    // KIRIM field kanonik. updateProfil aman untuk update parsial.
     await updateProfil({
       nama_umkm: namaUsaha.trim(),
       alamat: alamat.trim(),
@@ -155,7 +150,6 @@ export default function PengaturanScreen() {
     if (!nama) return setPresetError('Nama preset wajib diisi.');
     if (isNaN(persen) || persen <= 0 || persen > 100) return setPresetError('Persen harus 1–100.');
     try {
-      // Signature posisional (sesuai diskon-preset.ts).
       if (editPreset) await updateDiskonPreset(editPreset.id, nama, persen);
       else await tambahDiskonPreset(nama, persen);
       setPresetFormMode(false);
@@ -184,12 +178,7 @@ export default function PengaturanScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Pengaturan</Text>
-        <Text style={styles.sub}>Profil usaha, struk, dan data</Text>
-      </View>
-
+    <ScreenLayout title="Pengaturan" subtitle="Profil usaha, struk, dan data" bodyPadding={0}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -198,12 +187,19 @@ export default function PengaturanScreen() {
           {/* Profil */}
           <Text style={styles.sectionLabel}>Profil Usaha</Text>
           <View style={styles.card}>
-            <Field label="Nama Usaha" value={namaUsaha} onChange={setNamaUsaha} placeholder="cth: Warung Kopi Senja" />
-            <Field label="Alamat" value={alamat} onChange={setAlamat} placeholder="Alamat singkat" multiline />
-            <Field label="Telepon" value={telepon} onChange={setTelepon} placeholder="08xx" keyboardType="phone-pad" />
-            <Field label="Catatan kaki struk" value={footer} onChange={setFooter} placeholder="cth: Terima kasih 🙏" multiline />
+            <Field label="Nama Usaha" icon="store" value={namaUsaha} onChange={setNamaUsaha} placeholder="cth: Warung Kopi Senja" />
+            <Field label="Alamat" icon="map-pin" value={alamat} onChange={setAlamat} placeholder="Alamat singkat" multiline />
+            <Field label="Telepon" icon="phone" value={telepon} onChange={setTelepon} placeholder="08xx" keyboardType="phone-pad" />
+            <Field label="Catatan kaki struk" icon="file" value={footer} onChange={setFooter} placeholder="cth: Terima kasih atas kunjungan Anda" multiline />
             <Pressable style={styles.btnPrimary} onPress={simpanProfil}>
-              <Text style={styles.btnPrimaryTxt}>{profilTersimpan ? '✓ Tersimpan' : 'Simpan Profil'}</Text>
+              {profilTersimpan ? (
+                <View style={styles.btnРrimaryRow}>
+                  <Icon name="check" size={18} color={Colors.onPrimary} strokeWidth={3} />
+                  <Text style={styles.btnPrimaryTxt}>Tersimpan</Text>
+                </View>
+              ) : (
+                <Text style={styles.btnPrimaryTxt}>Simpan Profil</Text>
+              )}
             </Pressable>
           </View>
 
@@ -226,11 +222,12 @@ export default function PengaturanScreen() {
           {/* Preset diskon */}
           <Text style={styles.sectionLabel}>Preset Diskon</Text>
           <Pressable style={styles.navRow} onPress={bukaDaftarPreset}>
+            <Icon name="badge-percent" size={22} color={Colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.navTitle}>Kelola Preset Diskon</Text>
               <Text style={styles.navSub}>{presets.length} preset tersimpan</Text>
             </View>
-            <Text style={styles.navChevron}>›</Text>
+            <Icon name="chevron-right" size={22} color={Colors.textMuted} />
           </Pressable>
 
           {/* Program promo */}
@@ -238,11 +235,12 @@ export default function PengaturanScreen() {
             <>
               <Text style={styles.sectionLabel}>Program Promo</Text>
               <Pressable style={styles.navRow} onPress={() => router.push('/promo')}>
+                <Icon name="gift" size={22} color={Colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.navTitle}>Atur Program Promo</Text>
                   <Text style={styles.navSub}>BOGO & diskon item otomatis</Text>
                 </View>
-                <Text style={styles.navChevron}>›</Text>
+                <Icon name="chevron-right" size={22} color={Colors.textMuted} />
               </Pressable>
             </>
           )}
@@ -253,12 +251,22 @@ export default function PengaturanScreen() {
             <Pressable style={styles.btnOutline} onPress={handleExport} disabled={backupLoading !== null}>
               {backupLoading === 'export'
                 ? <ActivityIndicator color={Colors.primary} />
-                : <Text style={styles.btnOutlineTxt}>⬇  Export ke Excel</Text>}
+                : (
+                  <>
+                    <Icon name="download" size={18} color={Colors.primary} />
+                    <Text style={styles.btnOutlineTxt}>Export ke Excel</Text>
+                  </>
+                )}
             </Pressable>
             <Pressable style={[styles.btnOutline, { marginTop: Spacing.sm }]} onPress={handleImport} disabled={backupLoading !== null}>
               {backupLoading === 'import'
                 ? <ActivityIndicator color={Colors.primary} />
-                : <Text style={styles.btnOutlineTxt}>⬆  Import dari Excel</Text>}
+                : (
+                  <>
+                    <Icon name="upload" size={18} color={Colors.primary} />
+                    <Text style={styles.btnOutlineTxt}>Import dari Excel</Text>
+                  </>
+                )}
             </Pressable>
           </View>
 
@@ -273,12 +281,14 @@ export default function PengaturanScreen() {
         title={presetFormMode ? (editPreset ? 'Edit Preset' : 'Tambah Preset') : 'Preset Diskon'}
         headerRight={
           presetFormMode ? (
-            <Pressable onPress={() => setPresetFormMode(false)} hitSlop={8}>
-              <Text style={styles.kembaliLink}>‹ Daftar</Text>
+            <Pressable onPress={() => setPresetFormMode(false)} hitSlop={8} style={styles.linkRow}>
+              <Icon name="chevron-left" size={18} color={Colors.primary} />
+              <Text style={styles.kembaliLink}>Daftar</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={() => bukaFormPreset()} hitSlop={8}>
-              <Text style={styles.tambahLink}>+ Tambah</Text>
+            <Pressable onPress={() => bukaFormPreset()} hitSlop={8} style={styles.linkRow}>
+              <Icon name="plus" size={16} color={Colors.primary} strokeWidth={2.8} />
+              <Text style={styles.tambahLink}>Tambah</Text>
             </Pressable>
           )
         }
@@ -321,7 +331,7 @@ export default function PengaturanScreen() {
             </View>
           </View>
         ) : (
-          /* ── daftar preset ── */
+          /* ── daftar preset (PickerRow seragam) ── */
           <ScrollView
             style={styles.presetListScroll}
             contentContainerStyle={styles.presetListContent}
@@ -329,34 +339,38 @@ export default function PengaturanScreen() {
           >
             {presets.length === 0 ? (
               <Text style={styles.presetKosong}>
-                Belum ada preset. Tekan "+ Tambah" untuk membuat preset diskon pertama.
+                Belum ada preset. Tekan "Tambah" untuk membuat preset diskon pertama.
               </Text>
             ) : (
               presets.map((p) => (
-                <Pressable key={p.id} style={styles.presetRow} onPress={() => bukaFormPreset(p)}>
-                  <Text style={styles.presetNama}>{p.nama}</Text>
-                  <View style={styles.presetBadge}>
-                    <Text style={styles.presetBadgeTxt}>{p.persen}%</Text>
-                  </View>
-                </Pressable>
+                <PickerRow
+                  key={p.id}
+                  label={p.nama}
+                  badge={`${p.persen}%`}
+                  onPress={() => bukaFormPreset(p)}
+                />
               ))
             )}
           </ScrollView>
         )}
       </BottomSheet>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 function Field({
-  label, value, onChange, placeholder, multiline, keyboardType,
+  label, value, onChange, placeholder, multiline, keyboardType, icon,
 }: {
   label: string; value: string; onChange: (t: string) => void;
   placeholder?: string; multiline?: boolean; keyboardType?: 'phone-pad' | 'default';
+  icon?: IconName;
 }) {
   return (
     <View style={{ marginBottom: Spacing.md }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldLabelRow}>
+        {!!icon && <Icon name={icon} size={15} color={Colors.textMuted} />}
+        <Text style={styles.fieldLabel}>{label}</Text>
+      </View>
       <TextInput
         style={[styles.fieldInput, multiline && styles.fieldMultiline]}
         value={value}
@@ -371,10 +385,6 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md },
-  title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
-  sub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
   scroll: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs },
 
   sectionLabel: {
@@ -386,7 +396,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderRadius: Radii.lg, padding: Spacing.lg,
     borderWidth: 1, borderColor: Colors.border, ...shadow(1),
   },
-  fieldLabel: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.sm },
+  fieldLabel: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },
   fieldInput: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
@@ -398,6 +409,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radii.md,
     paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.sm, ...shadow(1),
   },
+  btnРrimaryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   btnPrimaryTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 
   lebarRow: { flexDirection: 'row', gap: Spacing.md },
@@ -410,40 +422,31 @@ const styles = StyleSheet.create({
   lebarTxtAktif: { color: Colors.primaryDark },
 
   navRow: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.surface, borderRadius: Radii.lg, padding: Spacing.lg,
     borderWidth: 1, borderColor: Colors.border, ...shadow(1),
   },
   navTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
   navSub: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  navChevron: { fontSize: 24, color: Colors.textMuted, fontWeight: '700' },
 
   btnOutline: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
+    flexDirection: 'row', gap: Spacing.sm,
     paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.border, minHeight: 48,
   },
   btnOutlineTxt: { color: Colors.primary, fontWeight: '700', fontSize: FontSize.md },
 
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   kembaliLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '700' },
   tambahLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '800' },
 
   presetListScroll: { flex: 1 },
-  presetListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xs },
+  presetListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xs, paddingBottom: Spacing.lg },
   presetKosong: {
     color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center',
     paddingVertical: Spacing.xl, lineHeight: 20,
   },
-  presetRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  presetNama: { fontSize: FontSize.md, color: Colors.text, fontWeight: '600', flex: 1 },
-  presetBadge: {
-    backgroundColor: Colors.primarySoft, borderRadius: Radii.sm,
-    paddingHorizontal: Spacing.md, paddingVertical: 4,
-  },
-  presetBadgeTxt: { color: Colors.primaryDark, fontWeight: '800', fontSize: FontSize.sm },
 
   presetForm: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl },
   formLabel: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text, marginTop: Spacing.md, marginBottom: Spacing.sm },
@@ -462,7 +465,6 @@ const styles = StyleSheet.create({
   error: { color: Colors.danger, fontSize: FontSize.sm, marginTop: Spacing.md, fontWeight: '600' },
   formAksi: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
 
-  // Hapus — height: 52
   formHapus: {
     height: 52,
     backgroundColor: Colors.dangerSoft, borderRadius: Radii.md,
@@ -471,7 +473,6 @@ const styles = StyleSheet.create({
   },
   formHapusTxt: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.md },
 
-  // Simpan — height: 52
   formSimpan: {
     flex: 1,
     height: 52,

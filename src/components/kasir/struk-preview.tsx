@@ -6,10 +6,9 @@
  * memang dialog tengah sederhana tanpa drag/snap, jadi <Modal> polos paling
  * aman & tidak konflik dengan sheet native.
  *
- * PERUBAHAN v2:
- *   - Font size dihitung dinamis via hitungStrukFont() agar tidak wrap.
- *   - Kertas tanpa fixed width — auto-size ke konten.
- *   - Kedua tombol (Cetak & Selesai) → height: 52, konsisten.
+ * PERUBAHAN v3:
+ *   - Ikon ✓ & 🖨 diganti lucide (check, printer).
+ *   - Font size dinamis via hitungStrukFont(); kertas auto-size; tombol height 52.
  *
  * Perilaku dipertahankan:
  *  - Tap backdrop SENGAJA tidak menutup.
@@ -22,16 +21,13 @@ import {
   ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
-import { UmkmConfig, Transaksi, TransactionItem } from '../../lib/db/database';
+import Icon from '../ui/icon';
+import type { UmkmConfig, Transaksi, TransactionItem } from '../../lib/db/database';
 import { renderStrukText, hitungStrukFont } from '../../lib/printer/struk';
 
 const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
-// Padding dikurangi dari lebar modal untuk mendapat availableWidth struk:
-//   Modal maxWidth: min(windowWidth - 2×Spacing.xl, 460)
-//   inner padding: Spacing.xl × 2 = 48
-//   kertas padding: Spacing.md × 2 = 24
-//   total kerurangan dari modal width = 72
+// Padding dikurangi dari lebar modal untuk mendapat availableWidth struk.
 const MODAL_OUTER_PAD = Spacing.xl * 2; // 48 — padding luar modal dari layar
 const INNER_PAD = Spacing.xl * 2;       // 48 — padding inner (View style.inner)
 const KERTAS_PAD = Spacing.md * 2;      // 24 — padding kartu kertas
@@ -69,7 +65,7 @@ export default function StrukPreview({
         <View style={styles.sheet}>
           <View style={styles.inner}>
             <View style={styles.suksesBadge}>
-              <Text style={styles.suksesIcon}>✓</Text>
+              <Icon name="check" size={30} color={Colors.success} strokeWidth={3} />
             </View>
             <Text style={styles.suksesTeks}>Transaksi Berhasil</Text>
             {!!trx && <Text style={styles.orderNo}>Order #{trx.nomor_order}</Text>}
@@ -104,7 +100,10 @@ export default function StrukPreview({
                 {mencetak ? (
                   <ActivityIndicator color={Colors.onPrimary} />
                 ) : (
-                  <Text style={styles.btnCetakTeks}>🖨  Cetak Struk</Text>
+                  <>
+                    <Icon name="printer" size={18} color={Colors.onPrimary} />
+                    <Text style={styles.btnCetakTeks}>Cetak Struk</Text>
+                  </>
                 )}
               </Pressable>
               <Pressable
@@ -137,7 +136,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center', alignItems: 'center', justifyContent: 'center',
     marginBottom: Spacing.md,
   },
-  suksesIcon: { fontSize: 30, color: Colors.success, fontWeight: '800' },
   suksesTeks: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.text, textAlign: 'center' },
   orderNo: {
     fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center',
@@ -154,13 +152,13 @@ const styles = StyleSheet.create({
   },
   mono: {
     color: Colors.text,
-    // fontFamily, fontSize, lineHeight di-inject inline (dynamic).
   },
 
   aksi: { gap: Spacing.md },
   btnCetak: {
     height: 52,
     backgroundColor: Colors.primary, borderRadius: Radii.lg,
+    flexDirection: 'row', gap: Spacing.sm,
     alignItems: 'center', justifyContent: 'center',
     ...shadow(1),
   },

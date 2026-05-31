@@ -4,25 +4,23 @@
  * @expo/ui (sheet native): SATU <BottomSheet>. Picker diskon BUKAN sheet kedua,
  * melainkan TUKAR-ISI di dalam sheet yang sama (state `pickerOpen`):
  *     pickerOpen=false → tampilan keranjang (list + ringkasan + bayar)
- *     pickerOpen=true  → tampilan pilih diskon (daftar preset)
+ *     pickerOpen=true  → tampilan pilih diskon (daftar preset, gaya PickerRow)
  *
- * PERUBAHAN (sesuai permintaan):
- *   - Tombol "Kosongkan" di header DIHAPUS. (onKosongkan masih ada di props demi
- *     kcompat pemanggil, tapi tidak dirender.)
- *   - Di mode pilih diskon: tombol "‹ Keranjang" (headerRight) DIHAPUS dan tombol
- *     bawah "Kembali ke Keranjang" DIHAPUS. Memilih opsi diskon mana pun (termasuk
- *     "Tanpa Diskon") sudah otomatis kembali ke keranjang via pilihDiskon().
- *   - ✕ close sudah dihapus di level BottomSheet (showClose=false global).
- *
- * SEMUA logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
+ * PERUBAHAN v3:
+ *   - Picker diskon memakai komponen PickerRow → SERAGAM dengan daftar kategori.
+ *   - SEMUA emoji diganti ikon lucide (metode bayar, promo, stepper).
+ *   - Logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
+import type { IconName } from '../ui/icon';
+import Icon from '../ui/icon';
+import PickerRow from '../ui/picker-row';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatRupiah, formatAngka, parseRupiah } from '../../lib/utils/currency';
-import { CartItem, DiskonPreset, PaymentMethod } from '../../lib/db/database';
+import type { CartItem, DiskonPreset, PaymentMethod } from '../../lib/db/database';
 import { hitungGrandTotal } from '../../lib/cart/promo-engine';
 import { features } from '../../lib/config/features';
 import DiskonInput from './diskon-input';
@@ -42,11 +40,11 @@ interface Props {
   onKosongkan?: () => void;
 }
 
-const PAYMENT_META: Record<PaymentMethod, { emoji: string; label: string }> = {
-  tunai: { emoji: '💵', label: 'Tunai' },
-  qris: { emoji: '📱', label: 'QRIS' },
-  transfer: { emoji: '🏦', label: 'Transfer' },
-  debit: { emoji: '💳', label: 'Debit' },
+const PAYMENT_META: Record<PaymentMethod, { icon: IconName; label: string }> = {
+  tunai: { icon: 'banknote', label: 'Tunai' },
+  qris: { icon: 'smartphone', label: 'QRIS' },
+  transfer: { icon: 'landmark', label: 'Transfer' },
+  debit: { icon: 'credit-card', label: 'Debit' },
 };
 
 export default function KeranjangPanel(props: Props) {
@@ -103,23 +101,15 @@ export default function KeranjangPanel(props: Props) {
     setPaymentMethod('tunai');
   }
 
-  const opsiDiskon = useMemo(
-    () => [{ id: -1, nama: 'Tanpa Diskon', persen: 0 } as DiskonPreset & { id: -1 }, ...presets],
-    [presets]
-  );
-
   return (
     <BottomSheet
       visible={visible}
       onClose={handleTutup}
       title={pickerOpen ? 'Pilih Diskon' : 'Keranjang'}
-      // headerRight dihilangkan sepenuhnya:
-      //   - mode keranjang: tidak ada lagi "Kosongkan".
-      //   - mode pilih diskon: tidak ada lagi "‹ Keranjang" (pilih opsi = kembali).
     >
       <View style={styles.container}>
         {pickerOpen ? (
-          /* ── MODE: pilih diskon (tukar isi, bukan overlay) ── */
+          /* ── MODE: pilih diskon (tukar isi, gaya PickerRow seragam) ── */
           <View style={styles.flex}>
             <ScrollView
               style={styles.flex}
@@ -127,32 +117,26 @@ export default function KeranjangPanel(props: Props) {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {opsiDiskon.map((item) => {
-                const isTanpa = item.id === -1;
-                const aktif = isTanpa ? diskonPresetId === null : diskonPresetId === item.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => (isTanpa ? pilihDiskon(null, 0) : pilihDiskon(item.id, item.persen))}
-                    style={({ pressed }) => [styles.opsi, aktif && styles.opsiAktif, pressed && styles.opsiPressed]}
-                  >
-                    <Text style={[styles.opsiNama, aktif && styles.opsiNamaAktif]} numberOfLines={1}>
-                      {item.nama}
-                    </Text>
-                    {!isTanpa && (
-                      <Text style={[styles.opsiPersen, aktif && styles.opsiPersenAktif]}>{item.persen}%</Text>
-                    )}
-                    {aktif && <Text style={styles.check}>✓</Text>}
-                  </Pressable>
-                );
-              })}
+              <PickerRow
+                label="Tanpa Diskon"
+                active={diskonPresetId === null}
+                onPress={() => pilihDiskon(null, 0)}
+              />
+              {presets.map((p) => (
+                <PickerRow
+                  key={p.id}
+                  label={p.nama}
+                  badge={`${p.persen}%`}
+                  active={diskonPresetId === p.id}
+                  onPress={() => pilihDiskon(p.id, p.persen)}
+                />
+              ))}
               {presets.length === 0 && (
                 <Text style={styles.pickerKosong}>
                   Belum ada preset diskon. Tambahkan dulu di Pengaturan → Preset Diskon.
                 </Text>
               )}
             </ScrollView>
-            {/* Tombol "Kembali ke Keranjang" DIHAPUS — memilih opsi sudah otomatis kembali. */}
           </View>
         ) : (
           /* ── MODE: keranjang ── */
@@ -179,14 +163,14 @@ export default function KeranjangPanel(props: Props) {
                         onPress={() => onUbahQty(it.menu_item_id, it.nama_produk, -1)}
                         style={({ pressed }) => [styles.stepBtn, pressed && styles.stepPressed]}
                       >
-                        <Text style={styles.stepTeks}>−</Text>
+                        <Icon name="minus" size={18} color={Colors.text} strokeWidth={2.6} />
                       </Pressable>
                       <Text style={styles.qty}>{it.qty}</Text>
                       <Pressable
                         onPress={() => onUbahQty(it.menu_item_id, it.nama_produk, +1)}
                         style={({ pressed }) => [styles.stepBtn, styles.stepPlus, pressed && styles.stepPressed]}
                       >
-                        <Text style={[styles.stepTeks, styles.stepTeksPlus]}>+</Text>
+                        <Icon name="plus" size={18} color={Colors.onPrimary} strokeWidth={2.6} />
                       </Pressable>
                     </View>
                   </View>
@@ -195,7 +179,10 @@ export default function KeranjangPanel(props: Props) {
 
               {itemsGratis.length > 0 && (
                 <View style={styles.promoBox}>
-                  <Text style={styles.promoTitle}>🎁 Promo BOGO</Text>
+                  <View style={styles.promoTitleRow}>
+                    <Icon name="gift" size={16} color={Colors.success} />
+                    <Text style={styles.promoTitle}>Promo BOGO</Text>
+                  </View>
                   {itemsGratis.map((g, i) => (
                     <Text key={i} style={styles.promoLine}>{g.nama_produk} × {g.qty} — GRATIS</Text>
                   ))}
@@ -216,18 +203,25 @@ export default function KeranjangPanel(props: Props) {
                   <View style={styles.paymentSection}>
                     <Text style={styles.paymentLabel}>Metode Bayar</Text>
                     <View style={styles.paymentRow}>
-                      {(['tunai', 'qris', 'transfer', 'debit'] as PaymentMethod[]).map((m) => (
-                        <Pressable
-                          key={m}
-                          onPress={() => { setPaymentMethod(m); setUangStr(''); }}
-                          style={[styles.paymentBtn, paymentMethod === m && styles.paymentBtnAktif]}
-                        >
-                          <Text style={styles.paymentEmoji}>{PAYMENT_META[m].emoji}</Text>
-                          <Text style={[styles.paymentTeks, paymentMethod === m && styles.paymentTeksAktif]}>
-                            {PAYMENT_META[m].label}
-                          </Text>
-                        </Pressable>
-                      ))}
+                      {(['tunai', 'qris', 'transfer', 'debit'] as PaymentMethod[]).map((m) => {
+                        const aktif = paymentMethod === m;
+                        return (
+                          <Pressable
+                            key={m}
+                            onPress={() => { setPaymentMethod(m); setUangStr(''); }}
+                            style={[styles.paymentBtn, aktif && styles.paymentBtnAktif]}
+                          >
+                            <Icon
+                              name={PAYMENT_META[m].icon}
+                              size={20}
+                              color={aktif ? Colors.primary : Colors.textMuted}
+                            />
+                            <Text style={[styles.paymentTeks, aktif && styles.paymentTeksAktif]}>
+                              {PAYMENT_META[m].label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   </View>
 
@@ -326,7 +320,6 @@ const styles = StyleSheet.create({
   // Container drawer TANPA warna — menyatu dengan warna sheet native.
   container: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
-  kembaliLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '700' },
 
   listContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xs },
 
@@ -346,14 +339,13 @@ const styles = StyleSheet.create({
   },
   stepPlus: { backgroundColor: Colors.primary, borderColor: Colors.primaryDark },
   stepPressed: { opacity: 0.7 },
-  stepTeks: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.text, lineHeight: 24 },
-  stepTeksPlus: { color: Colors.onPrimary },
   qty: { fontSize: FontSize.md, fontWeight: '800', color: Colors.text, minWidth: 22, textAlign: 'center' },
 
   promoBox: {
     marginTop: Spacing.md, backgroundColor: Colors.successSoft,
     borderRadius: Radii.md, padding: Spacing.md, gap: 2,
   },
+  promoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   promoTitle: { fontSize: FontSize.sm, fontWeight: '800', color: Colors.success },
   promoLine: { fontSize: FontSize.xs, color: Colors.success, fontWeight: '600' },
 
@@ -369,7 +361,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border,
   },
   paymentBtnAktif: { backgroundColor: Colors.primarySoft, borderColor: Colors.primary },
-  paymentEmoji: { fontSize: 20 },
   paymentTeks: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textMuted },
   paymentTeksAktif: { color: Colors.primary },
 
@@ -398,8 +389,7 @@ const styles = StyleSheet.create({
   },
   qrisInfoTeks: { fontSize: FontSize.sm, color: Colors.textMuted, lineHeight: 20 },
 
-  // Ringkasan footer — TANPA warna latar (menyatu dengan sheet). Hanya border atas
-  // sebagai pemisah visual; teks & tombol tetap berwarna.
+  // Ringkasan footer — TANPA warna latar (menyatu dengan sheet). Hanya border atas.
   ringkasan: {
     backgroundColor: 'transparent', paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg, paddingBottom: Spacing.md,
@@ -433,16 +423,4 @@ const styles = StyleSheet.create({
     color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center',
     paddingVertical: Spacing.xl, lineHeight: 20,
   },
-  opsi: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, borderRadius: Radii.sm,
-  },
-  opsiAktif: { backgroundColor: Colors.primarySoft },
-  opsiPressed: { opacity: 0.7 },
-  opsiNama: { flex: 1, fontSize: FontSize.md, color: Colors.text, fontWeight: '600' },
-  opsiNamaAktif: { color: Colors.primaryDark, fontWeight: '800' },
-  opsiPersen: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '800' },
-  opsiPersenAktif: { color: Colors.primaryDark },
-  check: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '900', width: 18, textAlign: 'center' },
 });

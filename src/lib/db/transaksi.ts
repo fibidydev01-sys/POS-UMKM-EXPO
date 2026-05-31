@@ -1,8 +1,9 @@
 /**
  * transaksi.ts — simpan transaksi, riwayat, void/refund, dan agregat dashboard.
  */
+import type { CartItem, PaymentMethod, Transaksi, TransactionItem} from './database';
 import {
-  getDb, CartItem, PaymentMethod, Transaksi, TransactionItem,
+  getDb
 } from './database';
 import { hitungGrandTotal } from '../cart/promo-engine';
 

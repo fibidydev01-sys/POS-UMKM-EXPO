@@ -1,18 +1,22 @@
 /**
  * Halaman kelola Program Promo (BOGO / Buy2Get1). V2 only — dibuka dari
  * Pengaturan. Daftar promo + tambah (FormPromoRule) + nonaktifkan.
+ *
+ * PERUBAHAN: emoji 🎁 (EmptyState) & karakter ＋ (FAB) diganti ikon vektor
+ * lucide (gift, plus).
  */
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../constants/colors';
-import { MenuItem, PromoRule } from '../lib/db/database';
+import type { MenuItem, PromoRule } from '../lib/db/database';
 import { getMenuItems } from '../lib/db/menu';
 import { getPromoRules, tambahPromoRule, hapusPromoRule } from '../lib/db/promo-rule';
 import { formatTanggal } from '../lib/utils/date';
 import FormPromoRule from '../components/pengaturan/form-promo-rule';
 import EmptyState from '../components/shared/empty-state';
+import Icon from '../components/ui/icon';
 
 const TIPE_LABEL: Record<string, string> = { bogo: 'Beli 1 Gratis 1', buy2get1: 'Beli 2 Gratis 1' };
 
@@ -72,7 +76,7 @@ export default function PromoScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <EmptyState icon="🎁" judul="Belum ada promo" deskripsi="Tambah promo BOGO atau Buy 2 Get 1 untuk produk Anda.">
+          <EmptyState icon="gift" judul="Belum ada promo" deskripsi="Tambah promo BOGO atau Buy 2 Get 1 untuk produk Anda.">
             <Pressable style={styles.emptyBtn} onPress={() => setFormVisible(true)}>
               <Text style={styles.emptyBtnTeks}>+ Tambah Promo</Text>
             </Pressable>
@@ -81,7 +85,7 @@ export default function PromoScreen() {
       />
 
       <Pressable style={styles.fab} onPress={() => setFormVisible(true)}>
-        <Text style={styles.fabTeks}>＋</Text>
+        <Icon name="plus" size={28} color={Colors.onPrimary} strokeWidth={2.6} />
       </Pressable>
 
       <FormPromoRule
@@ -115,5 +119,4 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: 30, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center', ...shadow(3), elevation: 12,
   },
-  fabTeks: { color: Colors.onPrimary, fontSize: 32, fontWeight: '300', marginTop: -2 },
 });

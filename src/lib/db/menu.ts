@@ -1,7 +1,8 @@
 /**
  * Akses data menu & kategori.
  */
-import { getDb, Kategori, MenuItem } from './database';
+import type { Kategori, MenuItem } from './database';
+import { getDb } from './database';
 
 export interface MenuItemInput {
   nama: string;

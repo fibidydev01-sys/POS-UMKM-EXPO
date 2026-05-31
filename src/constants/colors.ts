@@ -8,7 +8,8 @@
  * tanpa memperbarui pemakainya.
  */
 
-import { Platform, ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
 
 export const Colors = {
   // Latar

@@ -14,8 +14,8 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatAngka, parseRupiah } from '../../lib/utils/currency';
-import { Kategori, MenuItem } from '../../lib/db/database';
-import { MenuItemInput } from '../../lib/db/menu';
+import type { Kategori, MenuItem } from '../../lib/db/database';
+import type { MenuItemInput } from '../../lib/db/menu';
 
 interface Props {
   visible: boolean;

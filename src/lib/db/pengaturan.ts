@@ -10,7 +10,8 @@
  *   - UI mengirim nama field yang SAMA dengan DB (tidak ada nama_usaha/telepon/
  *     lebar_kertas lagi) sehingga tidak ada lagi field undefined.
  */
-import { getDb, UmkmConfig } from './database';
+import type { UmkmConfig } from './database';
+import { getDb } from './database';
 
 /** Input profil — semua opsional agar bisa update sebagian (mis. hanya paper_width). */
 export interface ProfilInput {

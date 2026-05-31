@@ -5,7 +5,7 @@
 import React from 'react';
 import { Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
-import { Kategori } from '../../lib/db/database';
+import type { Kategori } from '../../lib/db/database';
 
 interface Props {
   kategori: Kategori[];

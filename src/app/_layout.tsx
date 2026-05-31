@@ -8,6 +8,8 @@
  *               └─ Stack (expo-router)
  *
  * initDatabase() dijalankan sekali sebelum render konten.
+ *
+ * PERUBAHAN: ikon error ⚠️ (emoji) diganti ikon vektor lucide (warning).
  */
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
@@ -18,6 +20,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@expo/ui/community/bottom-sheet';
 import { initDatabase } from '../lib/db/database';
 import { Colors, FontSize, Spacing } from '../constants/colors';
+import Icon from '../components/ui/icon';
 
 export default function RootLayout() {
   const [siap, setSiap] = useState(false);
@@ -39,7 +42,9 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <View style={styles.center}>
-            <Text style={styles.errIcon}>⚠️</Text>
+            <View style={styles.errIcon}>
+              <Icon name="warning" size={40} color={Colors.danger} strokeWidth={2.2} />
+            </View>
             <Text style={styles.errText}>{error}</Text>
           </View>
           <StatusBar style="dark" />
@@ -81,6 +86,11 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bg, padding: Spacing.xl },
   brand: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.primary, letterSpacing: 1 },
-  errIcon: { fontSize: 48, marginBottom: Spacing.md },
+  errIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: Colors.dangerSoft,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
   errText: { fontSize: FontSize.md, color: Colors.text, textAlign: 'center', lineHeight: 22 },
 });

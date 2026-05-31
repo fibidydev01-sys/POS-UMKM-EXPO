@@ -17,7 +17,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
-import { MenuItem } from '../../lib/db/database';
+import type { MenuItem } from '../../lib/db/database';
 
 export type PromoTipe = 'bogo' | 'diskon_item';
 

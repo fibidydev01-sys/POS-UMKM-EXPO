@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatRupiah } from '../../lib/utils/currency';
-import { MenuItem } from '../../lib/db/database';
+import type { MenuItem } from '../../lib/db/database';
 
 interface Props {
   items: MenuItem[];

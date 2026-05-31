@@ -14,7 +14,7 @@
  *   - Field config memakai nama yang benar: nama_umkm, no_telp, paper_width.
  */
 import { Platform } from 'react-native';
-import { UmkmConfig, Transaksi, TransactionItem } from '../db/database';
+import type { UmkmConfig, Transaksi, TransactionItem } from '../db/database';
 import { formatRupiah } from '../utils/currency';
 import { formatTanggalJam } from '../utils/date';
 

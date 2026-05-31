@@ -1,7 +1,8 @@
 /**
  * Akses data aturan promo (BOGO / Buy2Get1) per produk.
  */
-import { getDb, PromoRule, TipePromo } from './database';
+import type { PromoRule, TipePromo } from './database';
+import { getDb } from './database';
 
 export interface PromoRuleInput {
   menu_item_id: number;
