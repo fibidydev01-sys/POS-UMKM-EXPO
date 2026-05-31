@@ -5,25 +5,24 @@
  * KENAPA INI (bukan gorhom, bukan Modal+PanResponder custom):
  *   - @expo/ui membungkus sheet NATIVE: Jetpack Compose (Android), SwiftUI (iOS),
  *     vaul (web). Gesture, animasi, backdrop, dan keyboard ditangani OS →
- *     paling stabil di New Architecture. Tidak ada PanResponder/worklet buatan
- *     sendiri yang bisa "diam-diam tidak render".
+ *     paling stabil di New Architecture.
  *   - API komponen ini DIPERTAHANKAN sama seperti versi lama (visible, onClose,
  *     title, headerRight, snapPoints, scrollable, showClose) → drop-in untuk
  *     semua pemanggil.
  *
+ * TINGGI SERAGAM:
+ *   Semua sheet di-lock ke SHEET_HEIGHT (90%). snapPoints prop diterima tapi
+ *   DIABAIKAN — satu-satunya sumber kebenaran ada di konstanta ini. Dengan
+ *   begitu SELURUH drawer di aplikasi punya tinggi yang sama persis, konsisten
+ *   tanpa bergantung pada nilai yang dikirim pemanggil.
+ *
  * POLA WAJIB DI APLIKASI INI (karena sheet native sulit ditumpuk):
  *   JANGAN menumpuk dua sheet. Untuk sub-layar (pilih diskon / form), pakai
  *   SATU sheet dengan TUKAR ISI (content swap) — lihat keranjang-panel.tsx,
- *   riwayat.tsx, pengaturan.tsx. Tidak ada overlay absolut, tidak ada nested.
- *
- * Catatan native:
- *   - Handle (grabber) & backdrop digambar OS. enablePanDownToClose juga
- *     mengaktifkan tap-scrim & tombol back (Android) untuk menutup.
- *   - Header (judul + tombol ✕ + headerRight) digambar di sini, di dalam
- *     BottomSheetView, karena @expo/ui tidak menyediakan header.
+ *   riwayat.tsx, pengaturan.tsx.
  */
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -32,6 +31,11 @@ import {
 } from '@expo/ui/community/bottom-sheet';
 import { Colors, FontSize, Spacing } from '../../constants/colors';
 
+/** Tinggi TUNGGAL untuk semua drawer di aplikasi ini. Ubah di sini = ubah semua. */
+const SHEET_HEIGHT = '90%';
+
+// Tipe ini dipertahankan untuk kompatibilitas pemanggil yang masih mengirim snapPoints.
+// Nilainya DIABAIKAN oleh wrapper — hanya ada untuk mencegah error TypeScript.
 type SnapPoint = 'half' | 'full' | { fraction: number } | { height: number };
 
 export interface BottomSheetProps {
@@ -41,12 +45,8 @@ export interface BottomSheetProps {
   headerRight?: React.ReactNode;
   children: React.ReactNode;
   /**
-   * Titik snap. NILAI PERTAMA = tinggi awal saat dibuka.
-   *   'half'            → 55%
-   *   'full'            → 92%
-   *   { fraction: 0.7 } → 70%
-   *   { height: 420 }   → 420px
-   * Default: 'full'.
+   * @deprecated Diabaikan. Semua sheet menggunakan SHEET_HEIGHT (90%) secara otomatis.
+   * Prop ini hanya ada agar pemanggil lama tidak perlu diubah.
    */
   snapPoints?: SnapPoint[];
   /** Tampilkan tombol ✕ di header. Default: true. */
@@ -58,33 +58,20 @@ export interface BottomSheetProps {
 /** Metode imperatif sheet @expo/ui (subset yang kita pakai). */
 type SheetMethods = { present: () => void; dismiss: () => void };
 
-function toSnap(sp?: SnapPoint[]): (string | number)[] {
-  const list = sp && sp.length > 0 ? sp : ['full'];
-  return list.map((p) => {
-    if (p === 'full') return '92%';
-    if (p === 'half') return '55%';
-    if (typeof p === 'object' && 'fraction' in p) return `${Math.round(p.fraction * 100)}%`;
-    if (typeof p === 'object' && 'height' in p) return p.height;
-    return '92%';
-  });
-}
-
 export default function BottomSheet({
   visible,
   onClose,
   title,
   headerRight,
   children,
-  snapPoints,
+  // snapPoints sengaja tidak didestructure — prop ini ada di interface tapi diabaikan.
   showClose = true,
   scrollable = false,
 }: BottomSheetProps) {
   const ref = useRef<SheetMethods | null>(null);
   const insets = useSafeAreaInsets();
-  const snaps = useMemo(() => toSnap(snapPoints), [snapPoints]);
 
-  // Deklaratif (visible) → imperatif (present/dismiss). present/dismiss saat
-  // sudah dalam state itu = no-op, jadi aman dipanggil berulang.
+  // Deklaratif (visible) → imperatif (present/dismiss).
   useEffect(() => {
     if (visible) ref.current?.present();
     else ref.current?.dismiss();
@@ -95,10 +82,9 @@ export default function BottomSheet({
   return (
     <BottomSheetModal
       ref={ref as any}
-      snapPoints={snaps}
+      snapPoints={[SHEET_HEIGHT]}
       enableDynamicSizing={false}
       enablePanDownToClose
-      // User tutup lewat swipe / scrim / back → sinkron balik ke state parent.
       onDismiss={onClose}
     >
       <BottomSheetView style={[styles.root, { paddingBottom: insets.bottom }]}>
@@ -108,7 +94,12 @@ export default function BottomSheet({
             <View style={styles.headerRight}>
               {headerRight}
               {showClose && (
-                <Pressable onPress={onClose} hitSlop={10} style={styles.closeBtn} accessibilityLabel="Tutup">
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={10}
+                  style={styles.closeBtn}
+                  accessibilityLabel="Tutup"
+                >
                   <Text style={styles.closeTxt}>✕</Text>
                 </Pressable>
               )}
@@ -134,7 +125,6 @@ export default function BottomSheet({
 }
 
 const styles = StyleSheet.create({
-  // BottomSheetView dibatasi tinggi snap oleh sheet native → flex:1 mengisi penuh.
   root: { flex: 1, backgroundColor: Colors.bg },
   header: {
     flexDirection: 'row',
@@ -148,8 +138,12 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: FontSize.xl, fontWeight: '800', color: Colors.text },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeTxt: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textMuted, lineHeight: 18 },
   body: { flex: 1 },

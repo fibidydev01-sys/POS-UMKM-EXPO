@@ -6,14 +6,24 @@
  *   dalam sheet yang sama (state `refundMode`). Tidak ada penumpukan dua sheet
  *   native (yang perilakunya tidak konsisten antar platform).
  *
- *   refundMode=false → tampilan detail (struk + aksi Void/Refund/Cetak)
+ *   refundMode=false → tampilan detail (struk scrollable + aksi Void/Refund/Cetak)
  *   refundMode=true  → form alasan refund
+ *
+ * PERUBAHAN v2:
+ *   - Struk dibungkus ScrollView agar bisa scroll untuk struk panjang.
+ *   - Font size dihitung dinamis via hitungStrukFont() agar tidak wrap.
+ *   - Kertas (kartu putih) align sendiri ke konten, tanpa fixed width.
+ *   - Semua tombol aksi drawer → height: 52 untuk konsistensi.
+ *   - BottomSheet tidak mengirim snapPoints (diabaikan oleh wrapper).
  *
  * Tombol & form Refund hanya tampil saat features.refund aktif (V2).
  */
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, Platform, TextInput } from 'react-native';
+import {
+  View, Text, StyleSheet, FlatList, Pressable, Alert,
+  Platform, TextInput, ScrollView, useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
@@ -23,6 +33,7 @@ import { getConfig } from '../../lib/db/pengaturan';
 import { features } from '../../lib/config/features';
 import {
   renderStrukText, cetakStruk, connectPrinter, getPairedDevices, printerTersedia,
+  hitungStrukFont,
 } from '../../lib/printer/struk';
 import { formatRupiah } from '../../lib/utils/currency';
 import { formatTanggalJam } from '../../lib/utils/date';
@@ -33,7 +44,17 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer', debit: 'Debit',
 };
 
+// Padding yang dikurangi dari window.width untuk mendapat availableWidth struk:
+//   detailBody paddingHorizontal: Spacing.lg (16) × 2 = 32
+//   kertas padding: Spacing.md (12) × 2 = 24
+//   total = 56px
+const STRUK_PADDING = Spacing.lg * 2 + Spacing.md * 2;
+
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+
 export default function RiwayatScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+
   const [riwayat, setRiwayat] = useState<Transaksi[]>([]);
   const [config, setConfig] = useState<UmkmConfig | null>(null);
   const [detail, setDetail] = useState<Transaksi | null>(null);
@@ -137,6 +158,11 @@ export default function RiwayatScreen() {
   };
 
   const teksStruk = config && detail ? renderStrukText(config, detail, detailItems) : '';
+
+  // Hitung font metrics secara dinamis berdasarkan paper_width & layar.
+  const availableWidth = windowWidth - STRUK_PADDING;
+  const fontMetrics = hitungStrukFont(config?.paper_width ?? 58, availableWidth);
+
   const labelStatus = (s: Transaksi['status']) =>
     s === 'void' ? 'VOID' : s === 'refund' ? 'REFUND' : '';
 
@@ -202,7 +228,6 @@ export default function RiwayatScreen() {
         visible={detailVisible}
         onClose={tutupDetail}
         title={refundMode ? 'Refund Transaksi' : detail?.nomor_order}
-        snapPoints={[{ fraction: 0.7 }, 'full']}
         headerRight={
           refundMode ? (
             <Pressable onPress={() => setRefundMode(false)} hitSlop={8}>
@@ -251,6 +276,7 @@ export default function RiwayatScreen() {
         ) : (
           /* ── MODE detail ── */
           <View style={styles.detailBody}>
+            {/* Header info transaksi */}
             <View style={styles.detailHead}>
               <Text style={styles.detailWaktu}>
                 {detail && formatTanggalJam(detail.created_at)}
@@ -263,6 +289,7 @@ export default function RiwayatScreen() {
               </Text>
             </View>
 
+            {/* Info void/refund jika ada */}
             {detail && detail.status !== 'completed' && detail.void_reason && (
               <View style={[styles.voidInfo, detail.status === 'refund' && styles.refundInfo]}>
                 <Text style={[styles.voidInfoTeks, detail.status === 'refund' && styles.refundInfoTeks]}>
@@ -271,10 +298,29 @@ export default function RiwayatScreen() {
               </View>
             )}
 
-            <View style={styles.strukBox}>
-              <Text style={styles.strukText}>{teksStruk}</Text>
-            </View>
+            {/* Struk — scrollable, dinamis font, kertas putih tanpa fixed width */}
+            <ScrollView
+              style={styles.strukScroll}
+              contentContainerStyle={styles.strukScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.kertas}>
+                <Text
+                  style={[
+                    styles.strukText,
+                    {
+                      fontFamily: MONO as string,
+                      fontSize: fontMetrics.fontSize,
+                      lineHeight: fontMetrics.lineHeight,
+                    },
+                  ]}
+                >
+                  {teksStruk}
+                </Text>
+              </View>
+            </ScrollView>
 
+            {/* Tombol aksi — semua height: 52 */}
             <View style={styles.aksiRow}>
               {detail?.status === 'completed' && (
                 <Pressable
@@ -307,8 +353,6 @@ export default function RiwayatScreen() {
     </SafeAreaView>
   );
 }
-
-const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
@@ -344,7 +388,12 @@ const styles = StyleSheet.create({
   refundBadgeTeks: { color: Colors.warning },
   rowMeta: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
 
-  detailBody: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
+  // ── Detail mode ──
+  detailBody: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
   detailHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: Spacing.sm,
@@ -354,20 +403,43 @@ const styles = StyleSheet.create({
   detailGrandTotalVoid: { textDecorationLine: 'line-through', color: Colors.textMuted },
   voidInfo: {
     backgroundColor: Colors.dangerSoft, borderRadius: Radii.md,
-    padding: Spacing.md, marginBottom: Spacing.md,
+    padding: Spacing.md, marginBottom: Spacing.sm,
   },
   voidInfoTeks: { color: Colors.danger, fontSize: FontSize.sm },
   refundInfo: { backgroundColor: Colors.warningSoft },
   refundInfoTeks: { color: Colors.warning },
-  strukBox: {
-    flex: 1,
-    backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
-    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,
-    marginBottom: Spacing.md,
+
+  // Struk: ScrollView mengisi ruang antara detailHead dan aksiRow.
+  // kertas (View putih) di-align center agar struk sempit (58mm) terlihat rapi.
+  strukScroll: { flex: 1, marginBottom: Spacing.sm },
+  strukScrollContent: {
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
   },
-  strukText: { fontFamily: MONO as string, fontSize: 11, color: Colors.text, lineHeight: 18 },
+  kertas: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: Radii.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignSelf: 'center',
+    // Tidak ada fixed width — kertas auto-size ke konten terpanjang.
+    // Text sudah left-align secara default; jangan ubah textAlign di strukText.
+    ...shadow(1),
+  },
+  strukText: {
+    color: Colors.text,
+    // fontFamily, fontSize, lineHeight di-inject inline (dynamic).
+  },
+
+  // Tombol aksi — height: 52 untuk semua agar seragam dengan drawer lain.
   aksiRow: { flexDirection: 'row', gap: Spacing.sm },
-  aksiBtn: { paddingVertical: Spacing.md, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center' },
+  aksiBtn: {
+    height: 52,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   aksiVoid: { backgroundColor: Colors.dangerSoft, paddingHorizontal: Spacing.lg },
   aksiVoidTxt: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.md },
   aksiRefund: { backgroundColor: Colors.warningSoft, paddingHorizontal: Spacing.lg },
@@ -375,6 +447,7 @@ const styles = StyleSheet.create({
   aksiCetak: { flex: 1, backgroundColor: Colors.primary },
   aksiCetakTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 
+  // ── Refund mode ──
   refundBody: { paddingHorizontal: Spacing.xl, gap: Spacing.sm, paddingBottom: Spacing.xl },
   formSub: { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: Spacing.sm },
   formLabel: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.text },
@@ -386,13 +459,21 @@ const styles = StyleSheet.create({
   },
   formAksi: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.md },
   formBatal: {
-    backgroundColor: Colors.surfaceAlt, paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl, borderRadius: Radii.md, alignItems: 'center',
+    height: 52,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   formBatalTxt: { color: Colors.text, fontWeight: '700', fontSize: FontSize.md },
   formConfirm: {
-    flex: 1, backgroundColor: Colors.warning, paddingVertical: Spacing.md,
-    borderRadius: Radii.md, alignItems: 'center',
+    flex: 1,
+    height: 52,
+    backgroundColor: Colors.warning,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   formConfirmTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 });

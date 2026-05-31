@@ -5,14 +5,11 @@
  * scrollable, snapPoints full. Tidak ada handle/KeyboardAvoidingView manual.
  * Validasi tanggal & pemilihan produk TIDAK berubah.
  *
- * ── KONTRAK (samakan jika nama di lib kamu berbeda) ──
- *   Props.onSimpan menerima objek `PromoRuleInput`:
- *     { nama: string; tipe: 'bogo' | 'diskon_item';
- *       menu_item_id: number; nilai: number;
- *       tanggal_mulai: string | null; tanggal_selesai: string | null }
- *   `nilai` = qty gratis (untuk bogo) atau persen diskon (untuk diskon_item).
- *   Tanggal format 'YYYY-MM-DD' atau null (tanpa batas).
- *   Jika promo.tsx kamu memakai bentuk payload berbeda, sesuaikan `bangunInput()`.
+ * PERUBAHAN v2:
+ *   - Tombol Batal & Simpan → height: 52 untuk konsistensi dengan drawer lain.
+ *
+ * ── KONTRAK ──
+ *   Props.onSimpan menerima objek PromoRuleInput.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -180,9 +177,11 @@ export default function FormPromoRule({ visible, menuItems, onTutup, onSimpan }:
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <View style={styles.aksi}>
+          {/* Batal — height: 52 */}
           <Pressable style={styles.batal} onPress={onTutup}>
             <Text style={styles.batalTxt}>Batal</Text>
           </Pressable>
+          {/* Simpan — height: 52 */}
           <Pressable style={styles.simpan} onPress={simpan}>
             <Text style={styles.simpanTxt}>Simpan Promo</Text>
           </Pressable>
@@ -233,14 +232,23 @@ const styles = StyleSheet.create({
   hint: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm },
   error: { color: Colors.danger, fontSize: FontSize.sm, marginTop: Spacing.md, fontWeight: '600' },
   aksi: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
+
+  // Batal — height: 52
   batal: {
+    height: 52,
     backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
-    paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    alignItems: 'center', justifyContent: 'center',
   },
   batalTxt: { color: Colors.text, fontWeight: '700', fontSize: FontSize.md },
+
+  // Simpan — height: 52
   simpan: {
-    flex: 1, backgroundColor: Colors.primary, borderRadius: Radii.md,
-    paddingVertical: Spacing.md, alignItems: 'center', ...shadow(1),
+    flex: 1,
+    height: 52,
+    backgroundColor: Colors.primary, borderRadius: Radii.md,
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow(1),
   },
   simpanTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 });

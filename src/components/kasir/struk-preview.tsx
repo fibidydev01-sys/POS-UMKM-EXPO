@@ -6,21 +6,35 @@
  * memang dialog tengah sederhana tanpa drag/snap, jadi <Modal> polos paling
  * aman & tidak konflik dengan sheet native.
  *
+ * PERUBAHAN v2:
+ *   - Font size dihitung dinamis via hitungStrukFont() agar tidak wrap.
+ *   - Kertas tanpa fixed width — auto-size ke konten.
+ *   - Kedua tombol (Cetak & Selesai) → height: 52, konsisten.
+ *
  * Perilaku dipertahankan:
- *  - Tap backdrop SENGAJA tidak menutup (agar struk tidak tertutup tak sengaja
- *    sebelum dicetak). Hanya tombol "Selesai" yang menutup.
+ *  - Tap backdrop SENGAJA tidak menutup.
  *  - Back button Android menutup (onRequestClose → onSelesai).
  */
 
 import React from 'react';
 import {
-  Modal, View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Platform,
+  Modal, View, Text, StyleSheet, Pressable, ScrollView,
+  ActivityIndicator, Platform, useWindowDimensions,
 } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { UmkmConfig, Transaksi, TransactionItem } from '../../lib/db/database';
-import { renderStrukText } from '../../lib/printer/struk';
+import { renderStrukText, hitungStrukFont } from '../../lib/printer/struk';
 
 const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+
+// Padding dikurangi dari lebar modal untuk mendapat availableWidth struk:
+//   Modal maxWidth: min(windowWidth - 2×Spacing.xl, 460)
+//   inner padding: Spacing.xl × 2 = 48
+//   kertas padding: Spacing.md × 2 = 24
+//   total kerurangan dari modal width = 72
+const MODAL_OUTER_PAD = Spacing.xl * 2; // 48 — padding luar modal dari layar
+const INNER_PAD = Spacing.xl * 2;       // 48 — padding inner (View style.inner)
+const KERTAS_PAD = Spacing.md * 2;      // 24 — padding kartu kertas
 
 interface Props {
   visible: boolean;
@@ -35,7 +49,16 @@ interface Props {
 export default function StrukPreview({
   visible, config, trx, items, mencetak, onCetak, onSelesai,
 }: Props) {
+  const { width: windowWidth } = useWindowDimensions();
+
   const teks = config && trx ? renderStrukText(config, trx, items) : '';
+
+  // Lebar efektif modal (sama seperti constraints di StyleSheet.sheet):
+  //   - modal diberi padding Spacing.xl di kiri-kanan → maxWidth = min(window-48, 460)
+  //   - lalu dikurangi inner padding + kertas padding
+  const modalWidth = Math.min(windowWidth - MODAL_OUTER_PAD, 460);
+  const availableWidth = modalWidth - INNER_PAD - KERTAS_PAD;
+  const fontMetrics = hitungStrukFont(config?.paper_width ?? 58, availableWidth);
 
   return (
     <Modal
@@ -60,7 +83,18 @@ export default function StrukPreview({
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.kertas}>
-                <Text style={styles.mono}>{teks}</Text>
+                <Text
+                  style={[
+                    styles.mono,
+                    {
+                      fontFamily: MONO,
+                      fontSize: fontMetrics.fontSize,
+                      lineHeight: fontMetrics.lineHeight,
+                    },
+                  ]}
+                >
+                  {teks}
+                </Text>
               </View>
             </ScrollView>
 
@@ -112,23 +146,34 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center',
     marginTop: 2, marginBottom: Spacing.lg,
   },
+
+  // Kertas struk — tanpa fixed width, auto-size ke konten terpanjang.
   kertasWrap: { maxHeight: 320, marginBottom: Spacing.lg },
   kertasInner: { alignItems: 'center' },
   kertas: {
-    backgroundColor: '#FFFFFF', borderRadius: Radii.sm, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, width: '100%', ...shadow(1),
+    backgroundColor: '#FFFFFF', borderRadius: Radii.sm, padding: Spacing.md,
+    borderWidth: 1, borderColor: Colors.border,
+    alignSelf: 'center',
+    ...shadow(1),
   },
-  mono: { fontFamily: MONO, fontSize: 11, color: Colors.text, lineHeight: 16 },
+  mono: {
+    color: Colors.text,
+    // fontFamily, fontSize, lineHeight di-inject inline (dynamic).
+  },
+
+  // Tombol aksi — height: 52, konsisten dengan tombol drawer lain.
   aksi: { gap: Spacing.md },
   btnCetak: {
+    height: 52,
     backgroundColor: Colors.primary, borderRadius: Radii.lg,
-    paddingVertical: Spacing.lg, alignItems: 'center',
-    minHeight: 52, justifyContent: 'center', ...shadow(1),
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow(1),
   },
   btnCetakTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
   btnSelesai: {
+    height: 52,
     backgroundColor: Colors.surface, borderRadius: Radii.lg,
-    paddingVertical: Spacing.lg, alignItems: 'center',
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.border,
   },
   btnSelesaiTeks: { color: Colors.text, fontWeight: '700', fontSize: FontSize.md },

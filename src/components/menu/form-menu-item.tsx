@@ -3,6 +3,9 @@
  *
  * Memakai <BottomSheet> (wrapper @expo/ui). Header & handle dari sheet native.
  * Logika bisnis form TIDAK BERUBAH.
+ *
+ * PERUBAHAN v2:
+ *   - Tombol Hapus & Simpan → height: 52 untuk konsistensi dengan drawer lain.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -180,7 +183,14 @@ const styles = StyleSheet.create({
   knobOn: { alignSelf: 'flex-end' },
   error: { color: Colors.danger, fontSize: FontSize.sm, marginTop: Spacing.md, fontWeight: '600' },
   aksiRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
-  btn: { borderRadius: Radii.md, paddingVertical: Spacing.lg, alignItems: 'center' },
+
+  // Tombol — height: 52 (konsisten dengan semua tombol aksi drawer)
+  btn: {
+    height: 52,
+    borderRadius: Radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   btnHapus: { backgroundColor: Colors.dangerSoft, paddingHorizontal: Spacing.xl },
   btnHapusTeks: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.md },
   btnSimpan: { backgroundColor: Colors.primary, flex: 1, ...shadow(1) },

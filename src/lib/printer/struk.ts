@@ -40,6 +40,40 @@ function kiriKanan(kiri: string, kanan: string, w: number): string {
   return kiri + ' '.repeat(ruang) + kanan;
 }
 
+// ── Helper kalkulasi font untuk tampilan on-screen ──────────────────────────
+
+export interface StrukFontMetrics {
+  /** Font size optimal agar baris terpanjang tidak wrap di layar. */
+  fontSize: number;
+  /** Line height yang proporsional dengan fontSize. */
+  lineHeight: number;
+  /** Jumlah kolom karakter (32 untuk 58mm, 48 untuk 80mm). */
+  cols: number;
+}
+
+/**
+ * Hitung font size optimal untuk menampilkan struk monospace di layar.
+ *
+ * Logika:
+ *   - Karakter monospace (Menlo/DroidSansMono) punya rasio lebar ≈ 0.62× fontSize.
+ *   - Kita perlu `cols` karakter × lebar_per_char ≤ availableWidth.
+ *   - fontSize = floor(availableWidth / (cols × 0.62)), di-clamp ke [8, 12].
+ *
+ * @param paperWidth  lebar kertas dalam mm (58 atau 80)
+ * @param availableWidth  lebar piksel layar yang tersedia untuk konten struk
+ *                        (sudah dikurangi padding container & kartu kertas)
+ */
+export function hitungStrukFont(paperWidth: number, availableWidth: number): StrukFontMetrics {
+  const cols = kolom(paperWidth);
+  const CHAR_RATIO = 0.62; // lebar karakter monospace relatif terhadap fontSize
+  const ideal = Math.floor(availableWidth / (cols * CHAR_RATIO));
+  const fontSize = Math.max(8, Math.min(12, ideal));
+  const lineHeight = Math.round(fontSize * 1.55); // ≈ 1.55 line-height standar monospace
+  return { fontSize, lineHeight, cols };
+}
+
+// ── Render teks struk ────────────────────────────────────────────────────────
+
 /** Render struk sebagai teks polos siap tampil / kirim ke printer ESC/POS. */
 export function renderStrukText(config: UmkmConfig, trx: Transaksi, items: TransactionItem[]): string {
   const w = kolom(config.paper_width ?? 58);
@@ -130,7 +164,6 @@ export async function getPairedDevices(): Promise<PairedDevice[]> {
     const enabled = await mod.BluetoothManager.isBluetoothEnabled();
     if (!enabled) await mod.BluetoothManager.enableBluetooth();
     const paired = await mod.BluetoothManager.enableBluetooth();
-    // enableBluetooth mengembalikan daftar JSON paired devices pada lib ini.
     const list: PairedDevice[] = [];
     (paired ?? []).forEach((s) => {
       try {

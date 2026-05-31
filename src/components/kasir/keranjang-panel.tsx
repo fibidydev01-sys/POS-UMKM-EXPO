@@ -6,9 +6,10 @@
  *     melainkan TUKAR-ISI di dalam sheet yang sama (state `pickerOpen`):
  *       pickerOpen=false → tampilan keranjang (list + ringkasan + bayar)
  *       pickerOpen=true  → tampilan pilih diskon (daftar preset)
- *     Tidak ada position:absolute / zIndex / nested modal → tidak ada lagi
- *     "diskon tidak muncul".
  *   - Header (judul + aksi kanan) mengikuti mode aktif.
+ *
+ * PERUBAHAN v2:
+ *   - btnBayar & pickerTutupBtn → height: 52 untuk konsistensi dengan drawer lain.
  *
  * SEMUA logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
  */
@@ -107,7 +108,6 @@ export default function KeranjangPanel(props: Props) {
       visible={visible}
       onClose={handleTutup}
       title={pickerOpen ? 'Pilih Diskon' : 'Keranjang'}
-      snapPoints={['full']}
       headerRight={
         !pickerOpen && cartRaw.length > 0 ? (
           <Pressable onPress={onKosongkan} hitSlop={8}>
@@ -155,6 +155,7 @@ export default function KeranjangPanel(props: Props) {
                 </Text>
               )}
             </ScrollView>
+            {/* Tombol kembali di picker — height: 52 */}
             <Pressable style={styles.pickerTutupBtn} onPress={() => setPickerOpen(false)}>
               <Text style={styles.pickerTutupTxt}>Kembali ke Keranjang</Text>
             </Pressable>
@@ -302,10 +303,16 @@ export default function KeranjangPanel(props: Props) {
                 <Text style={styles.grandLabel}>Total</Text>
                 <Text style={styles.grandNilai}>{formatRupiah(grandTotal)}</Text>
               </View>
+
+              {/* Tombol bayar — height: 52 */}
               <Pressable
                 onPress={handleBayar}
                 disabled={!canBayar}
-                style={({ pressed }) => [styles.btnBayar, !canBayar && styles.btnDisabled, pressed && styles.btnPressed]}
+                style={({ pressed }) => [
+                  styles.btnBayar,
+                  !canBayar && styles.btnDisabled,
+                  pressed && styles.btnPressed,
+                ]}
               >
                 <Text style={styles.btnBayarTeks}>
                   {isCash
@@ -412,15 +419,19 @@ const styles = StyleSheet.create({
   },
   grandLabel: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.text },
   grandNilai: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.primary },
+
+  // Bayar — height: 52 (sama dengan semua tombol aksi drawer)
   btnBayar: {
+    height: 52,
     backgroundColor: Colors.primary, borderRadius: Radii.lg,
-    paddingVertical: Spacing.lg, alignItems: 'center', ...shadow(2),
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow(2),
   },
   btnDisabled: { backgroundColor: Colors.borderStrong },
   btnPressed: { opacity: 0.9 },
   btnBayarTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.lg },
 
-  // Picker diskon (tukar-isi)
+  // Picker diskon
   pickerListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md },
   pickerKosong: {
     color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center',
@@ -438,10 +449,13 @@ const styles = StyleSheet.create({
   opsiPersen: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '800' },
   opsiPersenAktif: { color: Colors.primaryDark },
   check: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '900', width: 18, textAlign: 'center' },
+
+  // Tombol kembali di picker — height: 52
   pickerTutupBtn: {
+    height: 52,
     margin: Spacing.xl, marginTop: Spacing.md,
     backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
-    paddingVertical: Spacing.md, alignItems: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   pickerTutupTxt: { color: Colors.text, fontWeight: '700', fontSize: FontSize.md },
 });

@@ -3,22 +3,12 @@
  *
  * DITULIS ULANG untuk @expo/ui (sheet native):
  *   Preset diskon (daftar) + form tambah/edit jadi SATU sheet dengan TUKAR-ISI
- *   (state `presetFormMode`). Bukan dua sheet bertumpuk (yang tidak konsisten
- *   antar platform untuk sheet native).
+ *   (state `presetFormMode`). Bukan dua sheet bertumpuk.
  *     presetFormMode=false → daftar preset (headerRight "+ Tambah")
  *     presetFormMode=true  → form preset (headerRight "‹ Daftar")
  *
- * ── KONTRAK src/lib & komponen yang dipakai file ini (UI tidak mengubah lib) ──
- *   '../../lib/db/pengaturan'      : getConfig(): Promise<UmkmConfig>;
- *                                    updateProfil(patch: Partial<UmkmConfig>): Promise<void>
- *   '../../lib/db/diskon-preset'   : getDiskonPreset(): Promise<DiskonPreset[]>;
- *                                    tambahDiskonPreset(nama: string, persen: number): Promise<void>;
- *                                    updateDiskonPreset(id: number, nama: string, persen: number): Promise<void>;
- *                                    hapusDiskonPreset(id: number): Promise<void>
- *   '../../lib/export/excel'       : exportExcel(): Promise<{ ok: boolean; pesan?: string }>;
- *                                    importExcel(): Promise<{ ok: boolean; pesan?: string; jumlah?: number }>
- *   UmkmConfig fields dipakai       : nama_usaha, alamat, telepon, footer_struk, lebar_kertas (58|80)
- *  Jika nama di lib kamu berbeda, samakan hanya baris import di bawah.
+ * PERUBAHAN v2:
+ *   - formHapus & formSimpan → height: 52 untuk konsistensi dengan drawer lain.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -44,7 +34,6 @@ export default function PengaturanScreen() {
   const [config, setConfig] = useState<UmkmConfig | null>(null);
   const [presets, setPresets] = useState<DiskonPreset[]>([]);
 
-  // Form profil (di layar utama, bukan sheet)
   const [namaUsaha, setNamaUsaha] = useState('');
   const [alamat, setAlamat] = useState('');
   const [telepon, setTelepon] = useState('');
@@ -461,14 +450,23 @@ const styles = StyleSheet.create({
   persenSuffix: { fontSize: FontSize.lg, color: Colors.textMuted, fontWeight: '700' },
   error: { color: Colors.danger, fontSize: FontSize.sm, marginTop: Spacing.md, fontWeight: '600' },
   formAksi: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
+
+  // Hapus — height: 52
   formHapus: {
+    height: 52,
     backgroundColor: Colors.dangerSoft, borderRadius: Radii.md,
-    paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    alignItems: 'center', justifyContent: 'center',
   },
   formHapusTxt: { color: Colors.danger, fontWeight: '700', fontSize: FontSize.md },
+
+  // Simpan — height: 52
   formSimpan: {
-    flex: 1, backgroundColor: Colors.primary, borderRadius: Radii.md,
-    paddingVertical: Spacing.md, alignItems: 'center', ...shadow(1),
+    flex: 1,
+    height: 52,
+    backgroundColor: Colors.primary, borderRadius: Radii.md,
+    alignItems: 'center', justifyContent: 'center',
+    ...shadow(1),
   },
   formSimpanTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 });
