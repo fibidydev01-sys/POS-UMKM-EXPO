@@ -10,11 +10,16 @@
  *     title, headerRight, snapPoints, scrollable, showClose) → drop-in untuk
  *     semua pemanggil.
  *
+ * PERUBAHAN v3:
+ *   - TOMBOL SILANG (✕) DIHAPUS dari semua drawer. showClose default = false.
+ *     Tutup drawer cukup lewat gesture pan-down / back button (perilaku native).
+ *   - BACKGROUND TRANSPARAN: root & body tidak lagi memakai Colors.bg.
+ *     Dengan begitu isi menyatu dengan warna sheet native (tidak ada lagi
+ *     "kotak warna" di dalam drawer). Hanya teks & tombol yang berwarna.
+ *
  * TINGGI SERAGAM:
  *   Semua sheet di-lock ke SHEET_HEIGHT (90%). snapPoints prop diterima tapi
- *   DIABAIKAN — satu-satunya sumber kebenaran ada di konstanta ini. Dengan
- *   begitu SELURUH drawer di aplikasi punya tinggi yang sama persis, konsisten
- *   tanpa bergantung pada nilai yang dikirim pemanggil.
+ *   DIABAIKAN — satu-satunya sumber kebenaran ada di konstanta ini.
  *
  * POLA WAJIB DI APLIKASI INI (karena sheet native sulit ditumpuk):
  *   JANGAN menumpuk dua sheet. Untuk sub-layar (pilih diskon / form), pakai
@@ -23,7 +28,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BottomSheetModal,
@@ -49,7 +54,10 @@ export interface BottomSheetProps {
    * Prop ini hanya ada agar pemanggil lama tidak perlu diubah.
    */
   snapPoints?: SnapPoint[];
-  /** Tampilkan tombol ✕ di header. Default: true. */
+  /**
+   * Tampilkan tombol ✕ di header. Default: FALSE (tombol silang sudah dihapus
+   * dari seluruh aplikasi). Biarkan default — jangan set true.
+   */
   showClose?: boolean;
   /** Bila true, isi dibungkus ScrollView. Default: false (View flex:1). */
   scrollable?: boolean;
@@ -65,7 +73,7 @@ export default function BottomSheet({
   headerRight,
   children,
   // snapPoints sengaja tidak didestructure — prop ini ada di interface tapi diabaikan.
-  showClose = true,
+  showClose = false,
   scrollable = false,
 }: BottomSheetProps) {
   const ref = useRef<SheetMethods | null>(null);
@@ -77,7 +85,7 @@ export default function BottomSheet({
     else ref.current?.dismiss();
   }, [visible]);
 
-  const hasHeader = !!(title || headerRight || showClose);
+  const hasHeader = !!(title || headerRight);
 
   return (
     <BottomSheetModal
@@ -91,19 +99,7 @@ export default function BottomSheet({
         {hasHeader && (
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{title ?? ''}</Text>
-            <View style={styles.headerRight}>
-              {headerRight}
-              {showClose && (
-                <Pressable
-                  onPress={onClose}
-                  hitSlop={10}
-                  style={styles.closeBtn}
-                  accessibilityLabel="Tutup"
-                >
-                  <Text style={styles.closeTxt}>✕</Text>
-                </Pressable>
-              )}
-            </View>
+            {!!headerRight && <View style={styles.headerRight}>{headerRight}</View>}
           </View>
         )}
 
@@ -125,7 +121,9 @@ export default function BottomSheet({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
+  // TRANSPARAN: warna sheet ditentukan oleh komponen native @expo/ui.
+  // Tidak ada Colors.bg di sini agar isi menyatu dengan drawer.
+  root: { flex: 1, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -137,15 +135,6 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1, fontSize: FontSize.xl, fontWeight: '800', color: Colors.text },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeTxt: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textMuted, lineHeight: 18 },
-  body: { flex: 1 },
+  body: { flex: 1, backgroundColor: 'transparent' },
   scrollContent: { flexGrow: 1 },
 });

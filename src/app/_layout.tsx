@@ -1,14 +1,13 @@
 /**
  * Root layout — membungkus seluruh app.
  *
- * Drawer sekarang memakai @expo/ui (sheet NATIVE). Urutan provider:
- *   GestureHandlerRootView  (tetap dipasang; navigasi/gesture lain memakainya,
- *                            walau @expo/ui tidak mewajibkannya)
+ * Drawer memakai @expo/ui (sheet NATIVE). Urutan provider:
+ *   GestureHandlerRootView
  *     └─ SafeAreaProvider
  *          └─ BottomSheetModalProvider  (dari @expo/ui — kompatibilitas API)
  *               └─ Stack (expo-router)
  *
- * initDatabase() tetap dijalankan sekali sebelum render konten.
+ * initDatabase() dijalankan sekali sebelum render konten.
  */
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';

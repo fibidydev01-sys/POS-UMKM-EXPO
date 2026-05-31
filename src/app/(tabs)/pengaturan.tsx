@@ -1,14 +1,21 @@
 /**
  * Pengaturan — profil usaha, lebar kertas, backup, program promo, preset diskon.
  *
- * DITULIS ULANG untuk @expo/ui (sheet native):
- *   Preset diskon (daftar) + form tambah/edit jadi SATU sheet dengan TUKAR-ISI
- *   (state `presetFormMode`). Bukan dua sheet bertumpuk.
+ * @expo/ui (sheet native): Preset diskon (daftar) + form tambah/edit jadi SATU
+ * sheet dengan TUKAR-ISI (state `presetFormMode`). Bukan dua sheet bertumpuk.
  *     presetFormMode=false → daftar preset (headerRight "+ Tambah")
  *     presetFormMode=true  → form preset (headerRight "‹ Daftar")
  *
- * PERUBAHAN v2:
- *   - formHapus & formSimpan → height: 52 untuk konsistensi dengan drawer lain.
+ * PERBAIKAN BUG "Cannot read property 'trim' of undefined" + profil tidak bisa diisi:
+ *   - Field config dibaca dengan nama KANONIK: nama_umkm / alamat / no_telp /
+ *     footer_struk / paper_width (sesuai database.ts & type UmkmConfig).
+ *     Sebelumnya membaca c.nama_usaha / c.telepon / c.lebar_kertas (undefined)
+ *     sehingga input kosong & updateProfil menerima undefined → crash .trim().
+ *   - simpanProfil mengirim { nama_umkm, alamat, no_telp, footer_struk, paper_width }.
+ *   - gantiLebar mengirim { paper_width } (bukan lebar_kertas).
+ *   - Preset diskon memakai signature posisional (nama, persen) / (id, nama, persen).
+ *
+ * Catatan UI: tombol drawer height: 52 untuk konsistensi.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -34,6 +41,8 @@ export default function PengaturanScreen() {
   const [config, setConfig] = useState<UmkmConfig | null>(null);
   const [presets, setPresets] = useState<DiskonPreset[]>([]);
 
+  // State lokal form profil. Nama variabel boleh apa saja; yang penting
+  // pemetaan ke field DB benar saat baca (muat) & tulis (simpanProfil).
   const [namaUsaha, setNamaUsaha] = useState('');
   const [alamat, setAlamat] = useState('');
   const [telepon, setTelepon] = useState('');
@@ -56,11 +65,12 @@ export default function PengaturanScreen() {
     setConfig(c);
     setPresets(p);
     if (c) {
-      setNamaUsaha(c.nama_usaha ?? '');
+      // BACA field kanonik (bukan nama_usaha/telepon/lebar_kertas).
+      setNamaUsaha(c.nama_umkm ?? '');
       setAlamat(c.alamat ?? '');
-      setTelepon(c.telepon ?? '');
+      setTelepon(c.no_telp ?? '');
       setFooter(c.footer_struk ?? '');
-      setLebar((c.lebar_kertas === 80 ? 80 : 58) as 58 | 80);
+      setLebar((c.paper_width === 80 ? 80 : 58) as 58 | 80);
     }
   }, []);
 
@@ -68,12 +78,13 @@ export default function PengaturanScreen() {
 
   const simpanProfil = async () => {
     if (!namaUsaha.trim()) { Alert.alert('Nama usaha wajib', 'Isi nama usaha terlebih dahulu.'); return; }
+    // KIRIM field kanonik. updateProfil aman untuk update parsial.
     await updateProfil({
-      nama_usaha: namaUsaha.trim(),
+      nama_umkm: namaUsaha.trim(),
       alamat: alamat.trim(),
-      telepon: telepon.trim(),
+      no_telp: telepon.trim(),
       footer_struk: footer.trim(),
-      lebar_kertas: lebar,
+      paper_width: lebar,
     });
     setProfilTersimpan(true);
     setTimeout(() => setProfilTersimpan(false), 2000);
@@ -82,7 +93,7 @@ export default function PengaturanScreen() {
 
   const gantiLebar = async (val: 58 | 80) => {
     setLebar(val);
-    await updateProfil({ lebar_kertas: val });
+    await updateProfil({ paper_width: val });
   };
 
   const handleExport = async () => {
@@ -144,6 +155,7 @@ export default function PengaturanScreen() {
     if (!nama) return setPresetError('Nama preset wajib diisi.');
     if (isNaN(persen) || persen <= 0 || persen > 100) return setPresetError('Persen harus 1–100.');
     try {
+      // Signature posisional (sesuai diskon-preset.ts).
       if (editPreset) await updateDiskonPreset(editPreset.id, nama, persen);
       else await tambahDiskonPreset(nama, persen);
       setPresetFormMode(false);
@@ -222,7 +234,7 @@ export default function PengaturanScreen() {
           </Pressable>
 
           {/* Program promo */}
-          {features.promoEngine && (
+          {features.promoManagement && (
             <>
               <Text style={styles.sectionLabel}>Program Promo</Text>
               <Pressable style={styles.navRow} onPress={() => router.push('/promo')}>
@@ -259,7 +271,6 @@ export default function PengaturanScreen() {
         visible={presetVisible}
         onClose={tutupPreset}
         title={presetFormMode ? (editPreset ? 'Edit Preset' : 'Tambah Preset') : 'Preset Diskon'}
-        snapPoints={['half', 'full']}
         headerRight={
           presetFormMode ? (
             <Pressable onPress={() => setPresetFormMode(false)} hitSlop={8}>

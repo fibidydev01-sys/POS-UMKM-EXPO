@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   badgeTeks: { color: Colors.onPrimary, fontSize: FontSize.xs, fontWeight: '800' },
   thumb: {
     width: 40, height: 40, borderRadius: Radii.md,
-    backgroundColor: Colors.surfaceSunken, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
     marginBottom: Spacing.sm,
   },
   thumbHuruf: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.primary },

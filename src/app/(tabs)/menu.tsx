@@ -177,7 +177,7 @@ export default function MenuScreen() {
         onHapus={itemEdit ? hapusItem : undefined}
       />
 
-      {/* Kelola kategori */}
+      {/* Kelola kategori (sheet native, tanpa ✕ — header tetap tampil karena ada title) */}
       <BottomSheet
         visible={katVisible}
         onClose={() => setKatVisible(false)}

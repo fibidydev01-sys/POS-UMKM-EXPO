@@ -6,6 +6,7 @@
  *
  * PERUBAHAN v2:
  *   - Tombol Hapus & Simpan → height: 52 untuk konsistensi dengan drawer lain.
+ *   - Tombol silang dihapus (ditangani BottomSheet: showClose default false).
  */
 
 import React, { useState, useEffect } from 'react';

@@ -29,7 +29,7 @@ import EmptyState from '../../components/shared/empty-state';
 
 export default function KasirScreen() {
   // Tinggi tab bar NYATA dari navigator (bukan tebakan konstanta). Ini yang
-  // memperbaiki cart bar yang "loncat".
+  // membuat cart bar nempel rapi tepat di atas mobile nav, tidak loncat.
   const tabBarHeight = useBottomTabBarHeight();
 
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -129,6 +129,7 @@ export default function KasirScreen() {
 
   const kurang = (item: MenuItem) => ubahQty(item.id, item.nama, -1);
 
+  // Dipertahankan agar kompat; tidak lagi dipakai tombol "Kosongkan" (dihapus).
   const kosongkan = () => {
     setCartRaw([]);
     setDiskonPresetId(null);
@@ -191,7 +192,8 @@ export default function KasirScreen() {
     }
   };
 
-  // Cart bar didock TEPAT di atas tab bar memakai tinggi NYATA tab bar.
+  // Cart bar didock TEPAT di atas tab bar memakai tinggi NYATA tab bar +
+  // sedikit jarak. Hasilnya bar rapi menggantung di atas mobile nav.
   const cartBarBottom = tabBarHeight + Spacing.sm;
 
   return (
@@ -234,7 +236,7 @@ export default function KasirScreen() {
         </>
       )}
 
-      {/* Bar keranjang melayang — nempel di atas tab bar, tidak loncat. */}
+      {/* Bar keranjang melayang — nempel rapi di atas tab bar (mobile nav). */}
       {cartRaw.length > 0 && !keranjangBuka && (
         <Pressable
           onPress={() => setKeranjangBuka(true)}

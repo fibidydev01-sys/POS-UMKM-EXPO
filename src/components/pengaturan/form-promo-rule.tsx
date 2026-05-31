@@ -7,6 +7,7 @@
  *
  * PERUBAHAN v2:
  *   - Tombol Batal & Simpan → height: 52 untuk konsistensi dengan drawer lain.
+ *   - Tombol silang dihapus (ditangani BottomSheet: showClose default false).
  *
  * ── KONTRAK ──
  *   Props.onSimpan menerima objek PromoRuleInput.

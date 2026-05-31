@@ -3,6 +3,11 @@
  *
  * Offline-first: semua data tersimpan lokal di perangkat. Tidak ada server.
  * Skema dibuat sekali saat pertama dibuka (migrasi idempotent).
+ *
+ * SUMBER KEBENARAN NAMA FIELD CONFIG:
+ *   nama_umkm, alamat, no_telp, footer_struk, paper_width
+ *   (UI & semua pemanggil WAJIB memakai nama ini — tidak ada alias
+ *    nama_usaha / telepon / lebar_kertas lagi.)
  */
 
 import * as SQLite from 'expo-sqlite';
@@ -192,7 +197,8 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_menu_deleted ON menu_item(is_deleted);
   `);
 
-  // Seed pengaturan default
+  // Seed pengaturan default.
+  // CATATAN: key di sini = sumber kebenaran. nama_umkm / no_telp / paper_width.
   const defaults: Record<string, string> = {
     nama_umkm: 'Warung Saya',
     alamat: '',

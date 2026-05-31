@@ -53,9 +53,6 @@ export default function StrukPreview({
 
   const teks = config && trx ? renderStrukText(config, trx, items) : '';
 
-  // Lebar efektif modal (sama seperti constraints di StyleSheet.sheet):
-  //   - modal diberi padding Spacing.xl di kiri-kanan → maxWidth = min(window-48, 460)
-  //   - lalu dikurangi inner padding + kertas padding
   const modalWidth = Math.min(windowWidth - MODAL_OUTER_PAD, 460);
   const availableWidth = modalWidth - INNER_PAD - KERTAS_PAD;
   const fontMetrics = hitungStrukFont(config?.paper_width ?? 58, availableWidth);
@@ -147,7 +144,6 @@ const styles = StyleSheet.create({
     marginTop: 2, marginBottom: Spacing.lg,
   },
 
-  // Kertas struk — tanpa fixed width, auto-size ke konten terpanjang.
   kertasWrap: { maxHeight: 320, marginBottom: Spacing.lg },
   kertasInner: { alignItems: 'center' },
   kertas: {
@@ -161,7 +157,6 @@ const styles = StyleSheet.create({
     // fontFamily, fontSize, lineHeight di-inject inline (dynamic).
   },
 
-  // Tombol aksi — height: 52, konsisten dengan tombol drawer lain.
   aksi: { gap: Spacing.md },
   btnCetak: {
     height: 52,

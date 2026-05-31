@@ -6,6 +6,12 @@
  * mengembalikan false dan UI menampilkan pesan ramah — tanpa crash.
  *
  * renderStrukText murni (tanpa native) sehingga preview struk selalu jalan.
+ *
+ * PERBAIKAN HEADER STRUK:
+ *   - Nomor order ditaruh di baris sendiri (kiri), waktu di bawahnya.
+ *   - Tidak ada lagi pemanggilan kiriKanan(..,'',..) yang menghasilkan baris
+ *     setengah-jadi / trailing space aneh.
+ *   - Field config memakai nama yang benar: nama_umkm, no_telp, paper_width.
  */
 import { Platform } from 'react-native';
 import { UmkmConfig, Transaksi, TransactionItem } from '../db/database';
@@ -16,20 +22,19 @@ const PAYMENT_LABEL: Record<string, string> = {
   tunai: 'TUNAI', qris: 'QRIS', transfer: 'TRANSFER', debit: 'DEBIT',
 };
 
-interface HasilCetak { ok: boolean; pesan: string; }
-interface PairedDevice { name: string; address: string; }
-
 /** Lebar kolom efektif untuk kertas 58mm (32) / 80mm (48). */
 function kolom(paperWidth: number): number {
   return paperWidth >= 80 ? 48 : 32;
 }
 
 function garis(w: number): string { return '-'.repeat(w); }
+
 function tengah(teks: string, w: number): string {
   if (teks.length >= w) return teks.slice(0, w);
   const kiri = Math.floor((w - teks.length) / 2);
   return ' '.repeat(kiri) + teks;
 }
+
 /** Nama di kiri, harga di kanan, dipisah spasi sesuai lebar kolom. */
 function kiriKanan(kiri: string, kanan: string, w: number): string {
   const ruang = w - kiri.length - kanan.length;
@@ -57,17 +62,13 @@ export interface StrukFontMetrics {
  * Logika:
  *   - Karakter monospace (Menlo/DroidSansMono) punya rasio lebar ≈ 0.62× fontSize.
  *   - Kita perlu `cols` karakter × lebar_per_char ≤ availableWidth.
- *   - fontSize = floor(availableWidth / (cols × 0.62)), di-clamp ke [8, 12].
- *
- * @param paperWidth  lebar kertas dalam mm (58 atau 80)
- * @param availableWidth  lebar piksel layar yang tersedia untuk konten struk
- *                        (sudah dikurangi padding container & kartu kertas)
+ *   - fontSize = floor(availableWidth / (cols × 0.62)), di-clamp ke [8, 13].
  */
 export function hitungStrukFont(paperWidth: number, availableWidth: number): StrukFontMetrics {
   const cols = kolom(paperWidth);
   const CHAR_RATIO = 0.62; // lebar karakter monospace relatif terhadap fontSize
   const ideal = Math.floor(availableWidth / (cols * CHAR_RATIO));
-  const fontSize = Math.max(8, Math.min(12, ideal));
+  const fontSize = Math.max(8, Math.min(13, ideal));
   const lineHeight = Math.round(fontSize * 1.55); // ≈ 1.55 line-height standar monospace
   return { fontSize, lineHeight, cols };
 }
@@ -79,11 +80,14 @@ export function renderStrukText(config: UmkmConfig, trx: Transaksi, items: Trans
   const w = kolom(config.paper_width ?? 58);
   const L: string[] = [];
 
+  // ── Header toko (semua di tengah) ──
   L.push(tengah((config.nama_umkm || 'WARUNG').toUpperCase(), w));
   if (config.alamat) L.push(tengah(config.alamat, w));
   if (config.no_telp) L.push(tengah(config.no_telp, w));
   L.push(garis(w));
-  L.push(kiriKanan(trx.nomor_order, '', w).trimEnd());
+
+  // ── Info transaksi (kiri) ──
+  L.push(trx.nomor_order);
   L.push(formatTanggalJam(trx.created_at));
   if (trx.status !== 'completed') {
     L.push('');
@@ -91,6 +95,7 @@ export function renderStrukText(config: UmkmConfig, trx: Transaksi, items: Trans
   }
   L.push(garis(w));
 
+  // ── Item ──
   for (const it of items) {
     const gratis = it.item_type === 'promo_free';
     L.push(it.nama_produk);
@@ -157,14 +162,14 @@ export function printerTersedia(): boolean {
 }
 
 /** Daftar perangkat Bluetooth terpasang (paired). */
-export async function getPairedDevices(): Promise<PairedDevice[]> {
+export async function getPairedDevices(): Promise<{ name: string; address: string }[]> {
   const mod = loadModule();
   if (!mod) return [];
   try {
     const enabled = await mod.BluetoothManager.isBluetoothEnabled();
     if (!enabled) await mod.BluetoothManager.enableBluetooth();
     const paired = await mod.BluetoothManager.enableBluetooth();
-    const list: PairedDevice[] = [];
+    const list: { name: string; address: string }[] = [];
     (paired ?? []).forEach((s) => {
       try {
         const o = JSON.parse(s);
@@ -192,7 +197,7 @@ export async function cetakStruk(
   config: UmkmConfig,
   trx: Transaksi,
   items: TransactionItem[]
-): Promise<HasilCetak> {
+): Promise<{ ok: boolean; pesan: string }> {
   const mod = loadModule();
   if (!mod) return { ok: false, pesan: 'Printer hanya tersedia di build Android dengan printer Bluetooth.' };
   try {

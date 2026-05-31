@@ -1,12 +1,11 @@
 /**
  * Akses data preset diskon. Kasir hanya boleh memilih dari preset ini.
+ *
+ * PERBAIKAN: signature disesuaikan dengan pemanggil di pengaturan.tsx:
+ *   tambahDiskonPreset(nama, persen)
+ *   updateDiskonPreset(id, nama, persen)
  */
 import { getDb, DiskonPreset } from './database';
-
-export interface DiskonPresetInput {
-  nama: string;
-  persen: number;
-}
 
 export async function getDiskonPreset(): Promise<DiskonPreset[]> {
   const db = getDb();
@@ -16,19 +15,19 @@ export async function getDiskonPreset(): Promise<DiskonPreset[]> {
   );
 }
 
-export async function tambahDiskonPreset(input: DiskonPresetInput): Promise<void> {
+export async function tambahDiskonPreset(nama: string, persen: number): Promise<void> {
   const db = getDb();
   await db.runAsync(
     `INSERT INTO diskon_preset (nama, persen, is_active) VALUES (?, ?, 1)`,
-    [input.nama, input.persen]
+    [nama, persen]
   );
 }
 
-export async function updateDiskonPreset(id: number, input: DiskonPresetInput): Promise<void> {
+export async function updateDiskonPreset(id: number, nama: string, persen: number): Promise<void> {
   const db = getDb();
   await db.runAsync(
     `UPDATE diskon_preset SET nama = ?, persen = ? WHERE id = ?`,
-    [input.nama, input.persen, id]
+    [nama, persen, id]
   );
 }
 

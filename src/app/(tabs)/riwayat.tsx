@@ -1,20 +1,14 @@
 /**
  * Riwayat — daftar transaksi + detail + void + refund.
  *
- * DITULIS ULANG untuk @expo/ui (sheet native):
- *   SATU sheet "Detail". Refund BUKAN sheet kedua, melainkan TUKAR-ISI di
- *   dalam sheet yang sama (state `refundMode`). Tidak ada penumpukan dua sheet
- *   native (yang perilakunya tidak konsisten antar platform).
+ * @expo/ui (sheet native): SATU sheet "Detail". Refund BUKAN sheet kedua,
+ * melainkan TUKAR-ISI di dalam sheet yang sama (state `refundMode`).
+ *     refundMode=false → tampilan detail (struk scrollable + aksi Void/Refund/Cetak)
+ *     refundMode=true  → form alasan refund
  *
- *   refundMode=false → tampilan detail (struk scrollable + aksi Void/Refund/Cetak)
- *   refundMode=true  → form alasan refund
- *
- * PERUBAHAN v2:
- *   - Struk dibungkus ScrollView agar bisa scroll untuk struk panjang.
- *   - Font size dihitung dinamis via hitungStrukFont() agar tidak wrap.
- *   - Kertas (kartu putih) align sendiri ke konten, tanpa fixed width.
- *   - Semua tombol aksi drawer → height: 52 untuk konsistensi.
- *   - BottomSheet tidak mengirim snapPoints (diabaikan oleh wrapper).
+ * Struk dibungkus ScrollView; font dihitung dinamis via hitungStrukFont() agar
+ * tidak wrap. Kertas (kartu putih) align ke konten tanpa fixed width. Tombol
+ * aksi drawer height: 52. ✕ close sudah dihapus global di BottomSheet.
  *
  * Tombol & form Refund hanya tampil saat features.refund aktif (V2).
  */
@@ -410,7 +404,6 @@ const styles = StyleSheet.create({
   refundInfoTeks: { color: Colors.warning },
 
   // Struk: ScrollView mengisi ruang antara detailHead dan aksiRow.
-  // kertas (View putih) di-align center agar struk sempit (58mm) terlihat rapi.
   strukScroll: { flex: 1, marginBottom: Spacing.sm },
   strukScrollContent: {
     alignItems: 'center',
@@ -423,13 +416,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     alignSelf: 'center',
-    // Tidak ada fixed width — kertas auto-size ke konten terpanjang.
-    // Text sudah left-align secara default; jangan ubah textAlign di strukText.
     ...shadow(1),
   },
   strukText: {
     color: Colors.text,
-    // fontFamily, fontSize, lineHeight di-inject inline (dynamic).
   },
 
   // Tombol aksi — height: 52 untuk semua agar seragam dengan drawer lain.

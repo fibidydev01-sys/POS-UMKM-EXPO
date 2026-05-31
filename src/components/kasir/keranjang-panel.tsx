@@ -1,15 +1,18 @@
 /**
  * KeranjangPanel — drawer keranjang belanja.
  *
- * DITULIS ULANG untuk @expo/ui (sheet native):
- *   - SATU <BottomSheet>. Picker diskon BUKAN overlay & BUKAN sheet kedua,
- *     melainkan TUKAR-ISI di dalam sheet yang sama (state `pickerOpen`):
- *       pickerOpen=false → tampilan keranjang (list + ringkasan + bayar)
- *       pickerOpen=true  → tampilan pilih diskon (daftar preset)
- *   - Header (judul + aksi kanan) mengikuti mode aktif.
+ * @expo/ui (sheet native): SATU <BottomSheet>. Picker diskon BUKAN sheet kedua,
+ * melainkan TUKAR-ISI di dalam sheet yang sama (state `pickerOpen`):
+ *     pickerOpen=false → tampilan keranjang (list + ringkasan + bayar)
+ *     pickerOpen=true  → tampilan pilih diskon (daftar preset)
  *
- * PERUBAHAN v2:
- *   - btnBayar & pickerTutupBtn → height: 52 untuk konsistensi dengan drawer lain.
+ * PERUBAHAN (sesuai permintaan):
+ *   - Tombol "Kosongkan" di header DIHAPUS. (onKosongkan masih ada di props demi
+ *     kcompat pemanggil, tapi tidak dirender.)
+ *   - Di mode pilih diskon: tombol "‹ Keranjang" (headerRight) DIHAPUS dan tombol
+ *     bawah "Kembali ke Keranjang" DIHAPUS. Memilih opsi diskon mana pun (termasuk
+ *     "Tanpa Diskon") sudah otomatis kembali ke keranjang via pilihDiskon().
+ *   - ✕ close sudah dihapus di level BottomSheet (showClose=false global).
  *
  * SEMUA logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
  */
@@ -35,7 +38,8 @@ interface Props {
   onUbahQty: (menuItemId: number | null, nama: string, delta: number) => void;
   onUbahDiskon: (presetId: number | null, persen: number) => void;
   onBayar: (paymentMethod: PaymentMethod, uangDiterima: number | null) => void;
-  onKosongkan: () => void;
+  /** @deprecated Tidak lagi dirender (tombol Kosongkan dihapus). Tetap di props demi kompat. */
+  onKosongkan?: () => void;
 }
 
 const PAYMENT_META: Record<PaymentMethod, { emoji: string; label: string }> = {
@@ -48,7 +52,7 @@ const PAYMENT_META: Record<PaymentMethod, { emoji: string; label: string }> = {
 export default function KeranjangPanel(props: Props) {
   const {
     visible, cart, cartRaw, presets, diskonPresetId, diskonPersen,
-    onTutup, onUbahQty, onUbahDiskon, onBayar, onKosongkan,
+    onTutup, onUbahQty, onUbahDiskon, onBayar,
   } = props;
 
   const showPayment = features.payment;
@@ -73,6 +77,7 @@ export default function KeranjangPanel(props: Props) {
     onTutup();
   };
 
+  // Memilih opsi diskon LANGSUNG menutup picker → kembali ke keranjang.
   const pilihDiskon = (presetId: number | null, persen: number) => {
     onUbahDiskon(presetId, persen);
     setPickerOpen(false);
@@ -108,17 +113,9 @@ export default function KeranjangPanel(props: Props) {
       visible={visible}
       onClose={handleTutup}
       title={pickerOpen ? 'Pilih Diskon' : 'Keranjang'}
-      headerRight={
-        !pickerOpen && cartRaw.length > 0 ? (
-          <Pressable onPress={onKosongkan} hitSlop={8}>
-            <Text style={styles.kosongkan}>Kosongkan</Text>
-          </Pressable>
-        ) : pickerOpen ? (
-          <Pressable onPress={() => setPickerOpen(false)} hitSlop={8}>
-            <Text style={styles.kembaliLink}>‹ Keranjang</Text>
-          </Pressable>
-        ) : undefined
-      }
+      // headerRight dihilangkan sepenuhnya:
+      //   - mode keranjang: tidak ada lagi "Kosongkan".
+      //   - mode pilih diskon: tidak ada lagi "‹ Keranjang" (pilih opsi = kembali).
     >
       <View style={styles.container}>
         {pickerOpen ? (
@@ -155,10 +152,7 @@ export default function KeranjangPanel(props: Props) {
                 </Text>
               )}
             </ScrollView>
-            {/* Tombol kembali di picker — height: 52 */}
-            <Pressable style={styles.pickerTutupBtn} onPress={() => setPickerOpen(false)}>
-              <Text style={styles.pickerTutupTxt}>Kembali ke Keranjang</Text>
-            </Pressable>
+            {/* Tombol "Kembali ke Keranjang" DIHAPUS — memilih opsi sudah otomatis kembali. */}
           </View>
         ) : (
           /* ── MODE: keranjang ── */
@@ -329,9 +323,9 @@ export default function KeranjangPanel(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  // Container drawer TANPA warna — menyatu dengan warna sheet native.
+  container: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
-  kosongkan: { fontSize: FontSize.sm, color: Colors.danger, fontWeight: '700' },
   kembaliLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '700' },
 
   listContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xs },
@@ -404,8 +398,10 @@ const styles = StyleSheet.create({
   },
   qrisInfoTeks: { fontSize: FontSize.sm, color: Colors.textMuted, lineHeight: 20 },
 
+  // Ringkasan footer — TANPA warna latar (menyatu dengan sheet). Hanya border atas
+  // sebagai pemisah visual; teks & tombol tetap berwarna.
   ringkasan: {
-    backgroundColor: Colors.surface, paddingHorizontal: Spacing.xl,
+    backgroundColor: 'transparent', paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg, paddingBottom: Spacing.md,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
@@ -432,7 +428,7 @@ const styles = StyleSheet.create({
   btnBayarTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.lg },
 
   // Picker diskon
-  pickerListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md },
+  pickerListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.xl },
   pickerKosong: {
     color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center',
     paddingVertical: Spacing.xl, lineHeight: 20,
@@ -449,13 +445,4 @@ const styles = StyleSheet.create({
   opsiPersen: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '800' },
   opsiPersenAktif: { color: Colors.primaryDark },
   check: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '900', width: 18, textAlign: 'center' },
-
-  // Tombol kembali di picker — height: 52
-  pickerTutupBtn: {
-    height: 52,
-    margin: Spacing.xl, marginTop: Spacing.md,
-    backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pickerTutupTxt: { color: Colors.text, fontWeight: '700', fontSize: FontSize.md },
 });
