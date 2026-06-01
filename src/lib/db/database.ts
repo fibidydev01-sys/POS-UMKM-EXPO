@@ -1,16 +1,20 @@
 /**
  * database.ts — koneksi SQLite (expo-sqlite) + seluruh tipe domain.
  *
- * Offline-first: semua data tersimpan lokal di perangkat. Tidak ada server.
- * Skema dibuat sekali saat pertama dibuka (migrasi idempotent).
+ * Offline-first: semua data lokal. Server developer HANYA untuk aktivasi.
+ *
+ * PERUBAHAN (QRIS local-first):
+ *   - initDatabase() kini memakai MIGRATION RUNNER berurut (lihat migrations.ts),
+ *     bukan satu blok execAsync. Tabel pg_credentials & payment_session ikut.
+ *   - Transaksi punya kolom qris_provider / qris_external_id (referensi PG).
+ *   - UmkmConfig punya `tier` (v1/v2/v3) dari hasil aktivasi.
  *
  * SUMBER KEBENARAN NAMA FIELD CONFIG:
- *   nama_umkm, alamat, no_telp, footer_struk, paper_width
- *   (UI & semua pemanggil WAJIB memakai nama ini — tidak ada alias
- *    nama_usaha / telepon / lebar_kertas lagi.)
+ *   nama_umkm, alamat, no_telp, footer_struk, paper_width, tier
  */
 
 import * as SQLite from 'expo-sqlite';
+import { runMigrations } from './migrations';
 
 // ───────────────────────── Tipe Domain ─────────────────────────
 
@@ -18,6 +22,7 @@ export type PaymentMethod = 'tunai' | 'qris' | 'transfer' | 'debit';
 export type TipePromo = 'bogo' | 'buy2get1';
 export type StatusTransaksi = 'completed' | 'void' | 'refund';
 export type CartItemType = 'normal' | 'promo_free';
+export type Tier = 'v1' | 'v2' | 'v3';
 
 export interface Kategori {
   id: number;
@@ -75,6 +80,9 @@ export interface Transaksi {
   status: StatusTransaksi;
   void_reason: string | null;
   created_at: string;
+  // Referensi QRIS (null untuk transaksi cash).
+  qris_provider?: string | null;
+  qris_external_id?: string | null;
 }
 
 export interface TransactionItem {
@@ -95,6 +103,8 @@ export interface UmkmConfig {
   footer_struk: string;
   paper_width: number;       // 58 | 80
   app_version: string;
+  tier: Tier;
+  umkm_id: string | null;
   activated: boolean;
   activation_code: string | null;
 }
@@ -103,7 +113,6 @@ export interface UmkmConfig {
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
-/** Ambil koneksi tunggal (lazy). */
 export function getDb(): SQLite.SQLiteDatabase {
   if (!_db) {
     _db = SQLite.openDatabaseSync('pos_umkm.db');
@@ -114,7 +123,7 @@ export function getDb(): SQLite.SQLiteDatabase {
 let _initialized = false;
 
 /**
- * Inisialisasi skema + seed default. Idempotent — aman dipanggil tiap start.
+ * Inisialisasi: PRAGMA + migrasi berurut + seed default. Idempotent.
  */
 export async function initDatabase(): Promise<void> {
   if (_initialized) return;
@@ -123,82 +132,12 @@ export async function initDatabase(): Promise<void> {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
-
-    CREATE TABLE IF NOT EXISTS kategori (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nama TEXT NOT NULL,
-      urutan INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS menu_item (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nama TEXT NOT NULL,
-      harga REAL NOT NULL,
-      kategori_id INTEGER,
-      is_available INTEGER NOT NULL DEFAULT 1,
-      is_deleted INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (kategori_id) REFERENCES kategori(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS diskon_preset (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nama TEXT NOT NULL,
-      persen REAL NOT NULL,
-      is_active INTEGER NOT NULL DEFAULT 1
-    );
-
-    CREATE TABLE IF NOT EXISTS promo_rule (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      menu_item_id INTEGER NOT NULL,
-      tipe_promo TEXT NOT NULL,
-      berlaku_mulai TEXT,
-      berlaku_sampai TEXT,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      FOREIGN KEY (menu_item_id) REFERENCES menu_item(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS transaksi (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nomor_order TEXT NOT NULL,
-      subtotal REAL NOT NULL,
-      diskon_preset_id INTEGER,
-      diskon_persen REAL NOT NULL DEFAULT 0,
-      diskon_nominal REAL NOT NULL DEFAULT 0,
-      grand_total REAL NOT NULL,
-      payment_method TEXT NOT NULL DEFAULT 'tunai',
-      uang_diterima REAL,
-      kembalian REAL,
-      status TEXT NOT NULL DEFAULT 'completed',
-      void_reason TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-    );
-
-    CREATE TABLE IF NOT EXISTS transaction_item (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      transaksi_id INTEGER NOT NULL,
-      menu_item_id INTEGER,
-      nama_produk TEXT NOT NULL,
-      harga_satuan REAL NOT NULL,
-      qty INTEGER NOT NULL,
-      subtotal REAL NOT NULL,
-      item_type TEXT NOT NULL DEFAULT 'normal',
-      FOREIGN KEY (transaksi_id) REFERENCES transaksi(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS pengaturan (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_trx_created ON transaksi(created_at);
-    CREATE INDEX IF NOT EXISTS idx_trx_status ON transaksi(status);
-    CREATE INDEX IF NOT EXISTS idx_titem_trx ON transaction_item(transaksi_id);
-    CREATE INDEX IF NOT EXISTS idx_menu_deleted ON menu_item(is_deleted);
   `);
 
-  // Seed pengaturan default.
-  // CATATAN: key di sini = sumber kebenaran. nama_umkm / no_telp / paper_width.
+  // Migrasi berurut menggantikan blok CREATE TABLE manual.
+  await runMigrations(db);
+
+  // Seed pengaturan default (key = sumber kebenaran).
   const defaults: Record<string, string> = {
     nama_umkm: 'Warung Saya',
     alamat: '',
@@ -206,6 +145,8 @@ export async function initDatabase(): Promise<void> {
     footer_struk: 'Terima kasih atas kunjungan Anda',
     paper_width: '58',
     app_version: 'v1.0',
+    tier: 'v1',
+    umkm_id: '',
     activated: '0',
     activation_code: '',
   };
@@ -217,7 +158,7 @@ export async function initDatabase(): Promise<void> {
     );
   }
 
-  // Seed preset diskon contoh (hanya jika tabel kosong)
+  // Seed preset diskon contoh (hanya jika kosong).
   const cnt = await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) as n FROM diskon_preset`);
   if ((cnt?.n ?? 0) === 0) {
     await db.runAsync(`INSERT INTO diskon_preset (nama, persen, is_active) VALUES ('Diskon 10%', 10, 1)`);

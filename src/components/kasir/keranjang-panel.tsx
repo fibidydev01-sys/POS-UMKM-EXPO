@@ -1,15 +1,14 @@
 /**
  * KeranjangPanel — drawer keranjang belanja.
  *
- * @expo/ui (sheet native): SATU <BottomSheet>. Picker diskon BUKAN sheet kedua,
- * melainkan TUKAR-ISI di dalam sheet yang sama (state `pickerOpen`):
- *     pickerOpen=false → tampilan keranjang (list + ringkasan + bayar)
- *     pickerOpen=true  → tampilan pilih diskon (daftar preset, gaya PickerRow)
+ * @expo/ui (sheet native): SATU <BottomSheet>. Picker diskon = TUKAR-ISI.
  *
- * PERUBAHAN v3:
- *   - Picker diskon memakai komponen PickerRow → SERAGAM dengan daftar kategori.
- *   - SEMUA emoji diganti ikon lucide (metode bayar, promo, stepper).
- *   - Logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
+ * PERUBAHAN (QRIS local-first):
+ *   - Prop `qrisReady`: bila false, metode QRIS dinonaktifkan + tampil catatan
+ *     "atur di Pengaturan". Metode tunai/transfer/debit tidak terpengaruh.
+ *   - Saat metode QRIS dipilih: tidak ada input uang; tombol jadi
+ *     "Tampilkan QR · Rp…". Pembayaran QR ditangani layar kasir (DialogQris).
+ *   - Logika BOGO/diskon/kembalian cash TIDAK berubah.
  */
 
 import { useState, useEffect } from 'react';
@@ -32,11 +31,13 @@ interface Props {
   presets: DiskonPreset[];
   diskonPresetId: number | null;
   diskonPersen: number;
+  /** Apakah QRIS siap (PG aktif + secret ada). Default false. */
+  qrisReady?: boolean;
   onTutup: () => void;
   onUbahQty: (menuItemId: number | null, nama: string, delta: number) => void;
   onUbahDiskon: (presetId: number | null, persen: number) => void;
   onBayar: (paymentMethod: PaymentMethod, uangDiterima: number | null) => void;
-  /** @deprecated Tidak lagi dirender (tombol Kosongkan dihapus). Tetap di props demi kompat. */
+  /** @deprecated tidak lagi dirender. */
   onKosongkan?: () => void;
 }
 
@@ -49,7 +50,7 @@ const PAYMENT_META: Record<PaymentMethod, { icon: IconName; label: string }> = {
 
 export default function KeranjangPanel(props: Props) {
   const {
-    visible, cart, cartRaw, presets, diskonPresetId, diskonPersen,
+    visible, cart, cartRaw, presets, diskonPresetId, diskonPersen, qrisReady = false,
     onTutup, onUbahQty, onUbahDiskon, onBayar,
   } = props;
 
@@ -59,7 +60,6 @@ export default function KeranjangPanel(props: Props) {
   const [uangStr, setUangStr] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Reset state lokal saat drawer tertutup.
   useEffect(() => {
     if (!visible) {
       setUangStr('');
@@ -75,7 +75,6 @@ export default function KeranjangPanel(props: Props) {
     onTutup();
   };
 
-  // Memilih opsi diskon LANGSUNG menutup picker → kembali ke keranjang.
   const pilihDiskon = (presetId: number | null, persen: number) => {
     onUbahDiskon(presetId, persen);
     setPickerOpen(false);
@@ -88,11 +87,14 @@ export default function KeranjangPanel(props: Props) {
   const subtotalRaw = subtotalPaid + bogoValue;
 
   const isCash = showPayment && paymentMethod === 'tunai';
+  const isQris = showPayment && paymentMethod === 'qris';
   const uangNum = parseRupiah(uangStr);
   const kembalian = isCash && uangNum >= grandTotal ? uangNum - grandTotal : null;
 
   const canBayar =
-    cartRaw.length > 0 && grandTotal > 0 && (!isCash || uangNum >= grandTotal);
+    cartRaw.length > 0 && grandTotal > 0 &&
+    (!isCash || uangNum >= grandTotal) &&
+    (!isQris || qrisReady);
 
   function handleBayar() {
     if (showPayment) onBayar(paymentMethod, isCash ? uangNum : null);
@@ -100,6 +102,12 @@ export default function KeranjangPanel(props: Props) {
     setUangStr('');
     setPaymentMethod('tunai');
   }
+
+  const labelTombol = isQris
+    ? `Tampilkan QR · ${formatRupiah(grandTotal)}`
+    : isCash
+      ? `Bayar · ${formatRupiah(grandTotal)}`
+      : `Konfirmasi Bayar · ${formatRupiah(grandTotal)}`;
 
   return (
     <BottomSheet
@@ -109,7 +117,6 @@ export default function KeranjangPanel(props: Props) {
     >
       <View style={styles.container}>
         {pickerOpen ? (
-          /* ── MODE: pilih diskon (tukar isi, gaya PickerRow seragam) ── */
           <View style={styles.flex}>
             <ScrollView
               style={styles.flex}
@@ -139,7 +146,6 @@ export default function KeranjangPanel(props: Props) {
             </ScrollView>
           </View>
         ) : (
-          /* ── MODE: keranjang ── */
           <View style={styles.flex}>
             <ScrollView
               style={styles.flex}
@@ -205,24 +211,44 @@ export default function KeranjangPanel(props: Props) {
                     <View style={styles.paymentRow}>
                       {(['tunai', 'qris', 'transfer', 'debit'] as PaymentMethod[]).map((m) => {
                         const aktif = paymentMethod === m;
+                        const qrisDisabled = m === 'qris' && !qrisReady;
                         return (
                           <Pressable
                             key={m}
-                            onPress={() => { setPaymentMethod(m); setUangStr(''); }}
-                            style={[styles.paymentBtn, aktif && styles.paymentBtnAktif]}
+                            onPress={() => {
+                              if (qrisDisabled) return;
+                              setPaymentMethod(m);
+                              setUangStr('');
+                            }}
+                            style={[
+                              styles.paymentBtn,
+                              aktif && styles.paymentBtnAktif,
+                              qrisDisabled && styles.paymentBtnOff,
+                            ]}
                           >
                             <Icon
                               name={PAYMENT_META[m].icon}
                               size={20}
-                              color={aktif ? Colors.primary : Colors.textMuted}
+                              color={qrisDisabled ? Colors.textSubtle : aktif ? Colors.primary : Colors.textMuted}
                             />
-                            <Text style={[styles.paymentTeks, aktif && styles.paymentTeksAktif]}>
+                            <Text
+                              style={[
+                                styles.paymentTeks,
+                                aktif && styles.paymentTeksAktif,
+                                qrisDisabled && styles.paymentTeksOff,
+                              ]}
+                            >
                               {PAYMENT_META[m].label}
                             </Text>
                           </Pressable>
                         );
                       })}
                     </View>
+                    {!qrisReady && (
+                      <Text style={styles.qrisNote}>
+                        QRIS belum aktif. Atur penyedia di Pengaturan → Pembayaran QRIS.
+                      </Text>
+                    )}
                   </View>
 
                   {isCash && (
@@ -254,12 +280,19 @@ export default function KeranjangPanel(props: Props) {
                     </View>
                   )}
 
-                  {!isCash && (
+                  {isQris && (
                     <View style={styles.qrisInfo}>
                       <Text style={styles.qrisInfoTeks}>
-                        {paymentMethod === 'qris'
-                          ? 'Tunjukkan QR Code ke pelanggan. Konfirmasi setelah pembayaran berhasil.'
-                          : `Konfirmasi setelah dana ${PAYMENT_META[paymentMethod].label.toLowerCase()} masuk / disetujui.`}
+                        QR akan dibuat sesuai total. Pelanggan scan, lalu aplikasi mendeteksi
+                        pembayaran otomatis.
+                      </Text>
+                    </View>
+                  )}
+
+                  {!isCash && !isQris && (
+                    <View style={styles.qrisInfo}>
+                      <Text style={styles.qrisInfoTeks}>
+                        Konfirmasi setelah dana {PAYMENT_META[paymentMethod].label.toLowerCase()} masuk / disetujui.
                       </Text>
                     </View>
                   )}
@@ -269,7 +302,6 @@ export default function KeranjangPanel(props: Props) {
               <View style={{ height: Spacing.lg }} />
             </ScrollView>
 
-            {/* Footer ringkasan (di luar scroll) */}
             <View style={styles.ringkasan}>
               <View style={styles.barisTotal}>
                 <Text style={styles.subLabel}>Subtotal</Text>
@@ -292,7 +324,6 @@ export default function KeranjangPanel(props: Props) {
                 <Text style={styles.grandNilai}>{formatRupiah(grandTotal)}</Text>
               </View>
 
-              {/* Tombol bayar — height: 52 */}
               <Pressable
                 onPress={handleBayar}
                 disabled={!canBayar}
@@ -302,11 +333,7 @@ export default function KeranjangPanel(props: Props) {
                   pressed && styles.btnPressed,
                 ]}
               >
-                <Text style={styles.btnBayarTeks}>
-                  {isCash
-                    ? `Bayar · ${formatRupiah(grandTotal)}`
-                    : `Konfirmasi Bayar · ${formatRupiah(grandTotal)}`}
-                </Text>
+                <Text style={styles.btnBayarTeks}>{labelTombol}</Text>
               </Pressable>
             </View>
           </View>
@@ -317,12 +344,9 @@ export default function KeranjangPanel(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  // Container drawer TANPA warna — menyatu dengan warna sheet native.
   container: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
-
   listContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xs },
-
   item: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border,
@@ -361,8 +385,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.border,
   },
   paymentBtnAktif: { backgroundColor: Colors.primarySoft, borderColor: Colors.primary },
+  paymentBtnOff: { opacity: 0.45 },
   paymentTeks: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textMuted },
   paymentTeksAktif: { color: Colors.primary },
+  paymentTeksOff: { color: Colors.textSubtle },
+  qrisNote: { fontSize: FontSize.xs, color: Colors.warning, marginTop: Spacing.sm, fontWeight: '600' },
 
   cashSection: { marginTop: Spacing.lg },
   uangWrap: {
@@ -389,7 +416,6 @@ const styles = StyleSheet.create({
   },
   qrisInfoTeks: { fontSize: FontSize.sm, color: Colors.textMuted, lineHeight: 20 },
 
-  // Ringkasan footer — TANPA warna latar (menyatu dengan sheet). Hanya border atas.
   ringkasan: {
     backgroundColor: 'transparent', paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg, paddingBottom: Spacing.md,
@@ -406,7 +432,6 @@ const styles = StyleSheet.create({
   grandLabel: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.text },
   grandNilai: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.primary },
 
-  // Bayar — height: 52 (sama dengan semua tombol aksi drawer)
   btnBayar: {
     height: 52,
     backgroundColor: Colors.primary, borderRadius: Radii.lg,
@@ -417,7 +442,6 @@ const styles = StyleSheet.create({
   btnPressed: { opacity: 0.9 },
   btnBayarTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.lg },
 
-  // Picker diskon
   pickerListContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.xl },
   pickerKosong: {
     color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center',

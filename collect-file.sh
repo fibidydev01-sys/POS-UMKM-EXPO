@@ -40,9 +40,14 @@ echo -e "${BOLD}║  12.${RESET} ${CYAN}lib/utils/${RESET}                      
 echo -e "${BOLD}║  13.${RESET} ${CYAN}lib/cart/${RESET}                              ${BOLD}║${RESET}"
 echo -e "${BOLD}║  14.${RESET} ${CYAN}lib/config/${RESET}                            ${BOLD}║${RESET}"
 echo -e "${BOLD}║  15.${RESET} ${CYAN}constants/${RESET}                             ${BOLD}║${RESET}"
+echo -e "${BOLD}║  16.${RESET} ${CYAN}lib/payment/${RESET}                           ${BOLD}║${RESET}"
+echo -e "${BOLD}║  17.${RESET} ${CYAN}lib/pg/${RESET}                                ${BOLD}║${RESET}"
+echo -e "${BOLD}║  18.${RESET} ${CYAN}lib/secure/${RESET}                            ${BOLD}║${RESET}"
+echo -e "${BOLD}║  19.${RESET} ${CYAN}migrations/${RESET}                            ${BOLD}║${RESET}"
 echo -e "${BOLD}║                                                  ║${RESET}"
 echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–7)${RESET}                   ${BOLD}║${RESET}"
-echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (8–14)${RESET}                         ${BOLD}║${RESET}"
+echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (8–18)${RESET}                         ${BOLD}║${RESET}"
+echo -e "${BOLD}║  66.${RESET} ${GREEN}ALL PAYMENT (8,13,14,16,17,19 + 3,5)${RESET}   ${BOLD}║${RESET}"
 echo -e "${BOLD}║  99.${RESET} ${GREEN}ALL LAYERS (everything)${RESET}                ${BOLD}║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════╝${RESET}"
 echo ""
@@ -214,6 +219,26 @@ run_layer() {
             while IFS= read -r -d '' f; do cf "$f"
             done < <(find "$ROOT/constants" -type f -name "*.ts" -print0 | sort -z)
             ;;
+        16)
+            sec "lib/payment/"
+            while IFS= read -r -d '' f; do cf "$f"
+            done < <(find "$ROOT/lib/payment" -type f -name "*.ts" -print0 | sort -z)
+            ;;
+        17)
+            sec "lib/pg/"
+            while IFS= read -r -d '' f; do cf "$f"
+            done < <(find "$ROOT/lib/pg" -type f -name "*.ts" -print0 | sort -z)
+            ;;
+        18)
+            sec "lib/secure/"
+            while IFS= read -r -d '' f; do cf "$f"
+            done < <(find "$ROOT/lib/secure" -type f -name "*.ts" -print0 | sort -z)
+            ;;
+        19)
+            sec "migrations/"
+            while IFS= read -r -d '' f; do cf "$f"
+            done < <(find "./migrations" -type f \( -name "*.sql" -o -name "*.ts" \) -print0 | sort -z)
+            ;;
         *)
             echo -e "  ${RED}⚠ Pilihan tidak valid: $1${RESET}"
             ;;
@@ -222,11 +247,13 @@ run_layer() {
 
 # ── dispatch ─────────────────────────────────────────────────────
 if echo "$INPUT" | grep -qw "99"; then
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do run_layer $i; done
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "88"; then
     for i in 2 3 4 5 6 7; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "77"; then
-    for i in 8 9 10 11 12 13 14; do run_layer $i; done
+    for i in 8 9 10 11 12 13 14 16 17 18; do run_layer $i; done
+elif echo "$INPUT" | grep -qw "66"; then
+    for i in 8 13 14 16 17 19 3 5; do run_layer $i; done
 else
     for i in $INPUT; do run_layer "$i"; done
 fi
@@ -259,3 +286,5 @@ echo "Coverage  : $pct%"
 echo "Typecheck : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 echo "Lint      : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 } >> "$FILE"
+SCRIPT
+echo "done"

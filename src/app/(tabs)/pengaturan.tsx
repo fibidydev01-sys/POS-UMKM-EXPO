@@ -12,14 +12,27 @@
  *   - SEMUA emoji/teks-ikon (chevron, panah export/import, plus) diganti ikon lucide.
  *   - Field config tetap KANONIK: nama_umkm / alamat / no_telp / footer_struk /
  *     paper_width (sesuai database.ts & type UmkmConfig).
+ *
+ * PERUBAHAN (QRIS local-first):
+ *   - Section "Pembayaran" → baris nav ke /pembayaran (setup PG). Gated features.qris.
+ *   - Section "Keamanan" → toggle kunci aplikasi biometrik/PIN (Phase 4).
+ *
+ * PERBAIKAN TYPECHECK:
+ *   - router.push('/pembayaran') di-cast ke Href. Route ini valid (file
+ *     app/pembayaran.tsx ada & terdaftar di _layout), tetapi typed-routes
+ *     expo-router hanya meng-generate union saat `expo start`/prebuild — pada
+ *     `tsc --noEmit` murni (CI / clone bersih) union bisa BASI sehingga
+ *     '/pembayaran' belum terdaftar. Cast `as Href` membuatnya lolos sekarang
+ *     DAN tetap benar setelah typegen memasukkan route tsb. Hanya call ini
+ *     yang dicast; '/promo' & '/(tabs)/pengaturan' dibiarkan apa adanya.
  */
 
 import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Switch,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import type { UmkmConfig, DiskonPreset } from '../../lib/db/database';
 import { getConfig, updateProfil } from '../../lib/db/pengaturan';
@@ -28,6 +41,7 @@ import {
 } from '../../lib/db/diskon-preset';
 import { exportExcel, importExcel } from '../../lib/export/excel';
 import { features } from '../../lib/config/features';
+import { lockAktif, setLockAktif, cekBiometrik } from '../../lib/secure/app-lock';
 import ScreenLayout from '../../components/ui/screen-layout';
 import BottomSheet from '../../components/ui/bottom-sheet';
 import type { IconName } from '../../components/ui/icon';
@@ -49,6 +63,9 @@ export default function PengaturanScreen() {
 
   const [backupLoading, setBackupLoading] = useState<'export' | 'import' | null>(null);
 
+  // Kunci aplikasi (Phase 4).
+  const [kunci, setKunci] = useState(false);
+
   // Sheet preset (daftar ↔ form, tukar-isi)
   const [presetVisible, setPresetVisible] = useState(false);
   const [presetFormMode, setPresetFormMode] = useState(false);
@@ -68,6 +85,7 @@ export default function PengaturanScreen() {
       setFooter(c.footer_struk ?? '');
       setLebar((c.paper_width === 80 ? 80 : 58) as 58 | 80);
     }
+    setKunci(await lockAktif());
   }, []);
 
   useFocusEffect(useCallback(() => { void muat(); }, [muat]));
@@ -118,6 +136,22 @@ export default function PengaturanScreen() {
     } finally {
       setBackupLoading(null);
     }
+  };
+
+  // ── Kunci aplikasi (Phase 4) ──
+  const toggleKunci = async (next: boolean) => {
+    if (next) {
+      const cap = await cekBiometrik();
+      if (!cap.bisa) {
+        Alert.alert(
+          'Biometrik belum tersedia',
+          'Aktifkan sidik jari / Face ID atau PIN di pengaturan HP terlebih dahulu.'
+        );
+        return;
+      }
+    }
+    await setLockAktif(next);
+    setKunci(next);
   };
 
   // ── Preset diskon ──
@@ -195,7 +229,7 @@ export default function PengaturanScreen() {
             <Field label="Catatan kaki struk" icon="file" value={footer} onChange={setFooter} placeholder="cth: Terima kasih atas kunjungan Anda" multiline />
             <Pressable style={styles.btnPrimary} onPress={() => { void simpanProfil(); }}>
               {profilTersimpan ? (
-                <View style={styles.btnРrimaryRow}>
+                <View style={styles.btnPrimaryRow}>
                   <Icon name="check" size={18} color={Colors.onPrimary} strokeWidth={3} />
                   <Text style={styles.btnPrimaryTxt}>Tersimpan</Text>
                 </View>
@@ -220,6 +254,21 @@ export default function PengaturanScreen() {
               ))}
             </View>
           </View>
+
+          {/* Pembayaran QRIS — hanya tampil bila tier mengizinkan */}
+          {features.qris && (
+            <>
+              <Text style={styles.sectionLabel}>Pembayaran</Text>
+              <Pressable style={styles.navRow} onPress={() => router.push('/pembayaran' as Href)}>
+                <Icon name="smartphone" size={22} color={Colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.navTitle}>Pembayaran QRIS</Text>
+                  <Text style={styles.navSub}>Hubungkan Xendit / Midtrans / DOKU</Text>
+                </View>
+                <Icon name="chevron-right" size={22} color={Colors.textMuted} />
+              </Pressable>
+            </>
+          )}
 
           {/* Preset diskon */}
           <Text style={styles.sectionLabel}>Preset Diskon</Text>
@@ -270,6 +319,22 @@ export default function PengaturanScreen() {
                   </>
                 )}
             </Pressable>
+          </View>
+
+          {/* Keamanan — kunci aplikasi (Phase 4) */}
+          <Text style={styles.sectionLabel}>Keamanan</Text>
+          <View style={styles.navRow}>
+            <Icon name="key" size={22} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.navTitle}>Kunci Aplikasi</Text>
+              <Text style={styles.navSub}>Minta biometrik/PIN saat membuka aplikasi</Text>
+            </View>
+            <Switch
+              value={kunci}
+              onValueChange={(v) => { void toggleKunci(v); }}
+              trackColor={{ false: Colors.borderStrong, true: Colors.primary }}
+              thumbColor={Colors.surface}
+            />
           </View>
 
           <View style={{ height: Spacing.xxl }} />
@@ -411,7 +476,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: Radii.md,
     paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.sm, ...shadow(1),
   },
-  btnРrimaryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  btnPrimaryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   btnPrimaryTxt: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
 
   lebarRow: { flexDirection: 'row', gap: Spacing.md },

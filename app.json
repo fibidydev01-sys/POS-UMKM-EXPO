@@ -18,7 +18,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.posumkm.app"
+      "bundleIdentifier": "com.posumkm.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Membuka aplikasi kasir dengan Face ID."
+      }
     },
     "android": {
       "package": "com.posumkm.app",
@@ -42,7 +45,14 @@
     "plugins": [
       "expo-router",
       "expo-splash-screen",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Membuka aplikasi kasir dengan Face ID."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -19,17 +19,18 @@ import { getPromoAktif } from '../../lib/db/promo-rule';
 import { applyPromo, hitungGrandTotal } from '../../lib/cart/promo-engine';
 import { features } from '../../lib/config/features';
 import { cetakStruk, connectPrinter, getPairedDevices, printerTersedia } from '../../lib/printer/struk';
+import { usePaymentSession } from '../../lib/payment/use-payment-session';
+import { cekPgReady } from '../../lib/payment/pg-ready';
 
 import ScreenLayout from '../../components/ui/screen-layout';
 import MenuList from '../../components/kasir/menu-list';
 import KeranjangPanel from '../../components/kasir/keranjang-panel';
 import StrukPreview from '../../components/kasir/struk-preview';
+import DialogQris from '../../components/kasir/dialog-qris';
 import KategoriList from '../../components/menu/kategori-list';
 import EmptyState from '../../components/shared/empty-state';
 
 export default function KasirScreen() {
-  // Tinggi tab bar NYATA dari navigator (bukan tebakan konstanta). Ini yang
-  // membuat cart bar nempel rapi tepat di atas mobile nav, tidak loncat.
   const tabBarHeight = useBottomTabBarHeight();
 
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -38,6 +39,7 @@ export default function KasirScreen() {
   const [promoRules, setPromoRules] = useState<PromoRule[]>([]);
   const [kategoriAktif, setKategoriAktif] = useState<number | null>(null);
   const [config, setConfig] = useState<UmkmConfig | null>(null);
+  const [pgReady, setPgReady] = useState(false);
 
   const [cartRaw, setCartRaw] = useState<CartItem[]>([]);
 
@@ -51,19 +53,25 @@ export default function KasirScreen() {
   const [strukBuka, setStrukBuka] = useState(false);
   const [mencetak, setMencetak] = useState(false);
 
+  // QRIS
+  const [qrisBuka, setQrisBuka] = useState(false);
+  const pay = usePaymentSession();
+
   const muat = useCallback(async () => {
-    const [m, k, c, p, promo] = await Promise.all([
+    const [m, k, c, p, promo, ready] = await Promise.all([
       getMenuTersedia(),
       getKategori(),
       getConfig(),
       getDiskonPreset(),
       features.promoEngine ? getPromoAktif() : Promise.resolve([] as PromoRule[]),
+      features.qris ? cekPgReady() : Promise.resolve({ ready: false, alasan: '' }),
     ]);
     setMenu(m);
     setKategori(k);
     setConfig(c);
     setPresets(p);
     setPromoRules(promo);
+    setPgReady(ready.ready);
   }, []);
 
   useFocusEffect(useCallback(() => { void muat(); }, [muat]));
@@ -123,7 +131,6 @@ export default function KasirScreen() {
 
   const kurang = (item: MenuItem) => ubahQty(item.id, item.nama, -1);
 
-  // Dipertahankan agar kompat; tidak lagi dipakai tombol "Kosongkan" (dihapus).
   const kosongkan = () => {
     setCartRaw([]);
     setDiskonPresetId(null);
@@ -136,9 +143,38 @@ export default function KasirScreen() {
     setDiskonPersen(persen);
   }
 
+  const bukaStrukDari = async (transaksiId: number) => {
+    const [trx, items] = await Promise.all([
+      getTransaksiById(transaksiId),
+      getItemsByTransaksi(transaksiId),
+    ]);
+    setTrxSelesai(trx);
+    setItemsSelesai(items);
+    setStrukBuka(true);
+  };
+
   // ── Bayar ──
   const bayar = async (paymentMethod: PaymentMethod, uangDiterima: number | null) => {
     if (cartRaw.length === 0) return;
+
+    // Jalur QRIS digital → buka dialog QR, bukan langsung tulis transaksi.
+    if (paymentMethod === 'qris' && features.qris) {
+      if (!pgReady) {
+        Alert.alert('QRIS belum siap', 'Atur penyedia di Pengaturan → Pembayaran QRIS.');
+        return;
+      }
+      setKeranjangBuka(false);
+      setQrisBuka(true);
+      await pay.mulai({
+        cart,
+        diskonPresetId,
+        diskonPersen,
+        label: config?.nama_umkm ?? 'Pembayaran',
+      });
+      return;
+    }
+
+    // Jalur cash / non-digital → simpan langsung (perilaku lama).
     try {
       const hasil = await simpanTransaksi({
         items: cart,
@@ -147,20 +183,41 @@ export default function KasirScreen() {
         paymentMethod,
         uangDiterima,
       });
-      const [trx, items] = await Promise.all([
-        getTransaksiById(hasil.transaksiId),
-        getItemsByTransaksi(hasil.transaksiId),
-      ]);
-      setTrxSelesai(trx);
-      setItemsSelesai(items);
+      await bukaStrukDari(hasil.transaksiId);
       setKeranjangBuka(false);
-      setStrukBuka(true);
       setCartRaw([]);
       setDiskonPresetId(null);
       setDiskonPersen(0);
     } catch {
       Alert.alert('Gagal', 'Transaksi gagal disimpan. Coba lagi.');
     }
+  };
+
+  // QRIS paid → buka struk dari transaksi yang ditulis state machine.
+  const onQrisPaid = async () => {
+    const tid = pay.hasilSettle?.transaksiId;
+    setQrisBuka(false);
+    if (tid) await bukaStrukDari(tid);
+    setCartRaw([]);
+    setDiskonPresetId(null);
+    setDiskonPersen(0);
+    pay.reset();
+    await muat();
+  };
+
+  const onQrisTutup = async () => {
+    setQrisBuka(false);
+    await pay.batal();
+    await muat();
+  };
+
+  const onQrisBuatUlang = async () => {
+    await pay.mulai({
+      cart,
+      diskonPresetId,
+      diskonPersen,
+      label: config?.nama_umkm ?? 'Pembayaran',
+    });
   };
 
   // ── Cetak ──
@@ -186,10 +243,8 @@ export default function KasirScreen() {
     }
   };
 
-  // Cart bar didock TEPAT di atas tab bar memakai tinggi NYATA tab bar.
   const cartBarBottom = tabBarHeight + Spacing.sm;
 
-  // Bar keranjang melayang — nempel rapi di atas tab bar (mobile nav).
   const cartBar = (cartRaw.length > 0 && !keranjangBuka) ? (
     <Pressable
       onPress={() => setKeranjangBuka(true)}
@@ -249,6 +304,7 @@ export default function KasirScreen() {
         presets={presets}
         diskonPresetId={diskonPresetId}
         diskonPersen={diskonPersen}
+        qrisReady={pgReady}
         onTutup={() => setKeranjangBuka(false)}
         onUbahQty={ubahQty}
         onUbahDiskon={handleDiskonChange}
@@ -264,6 +320,21 @@ export default function KasirScreen() {
         mencetak={mencetak}
         onCetak={() => { void cetak(); }}
         onSelesai={() => setStrukBuka(false)}
+      />
+
+      <DialogQris
+        visible={qrisBuka}
+        fase={pay.fase}
+        session={pay.session}
+        sisaDetik={pay.sisaDetik}
+        error={pay.error}
+        jaringanBermasalah={pay.jaringanBermasalah}
+        amount={grandTotal}
+        onTutup={() => { void onQrisTutup(); }}
+        onBuatUlang={() => { void onQrisBuatUlang(); }}
+        onPaid={() => { void onQrisPaid(); }}
+        onStartPolling={pay.startPolling}
+        onStopPolling={pay.stopPolling}
       />
     </ScreenLayout>
   );
