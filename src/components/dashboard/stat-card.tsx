@@ -2,7 +2,6 @@
  * StatCard — kartu statistik ringkas. `highlight` membuat kartu primary
  * (untuk omzet hari ini). Ikon kini memakai lucide (bukan emoji).
  */
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import type { IconName } from '../ui/icon';

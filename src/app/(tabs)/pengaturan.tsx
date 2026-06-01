@@ -14,7 +14,7 @@
  *     paper_width (sesuai database.ts & type UmkmConfig).
  */
 
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -37,7 +37,7 @@ import PickerRow from '../../components/ui/picker-row';
 export default function PengaturanScreen() {
   const router = useRouter();
 
-  const [config, setConfig] = useState<UmkmConfig | null>(null);
+  const [, setConfig] = useState<UmkmConfig | null>(null);
   const [presets, setPresets] = useState<DiskonPreset[]>([]);
 
   const [namaUsaha, setNamaUsaha] = useState('');
@@ -70,7 +70,7 @@ export default function PengaturanScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { muat(); }, [muat]));
+  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
 
   const simpanProfil = async () => {
     if (!namaUsaha.trim()) { Alert.alert('Nama usaha wajib', 'Isi nama usaha terlebih dahulu.'); return; }
@@ -168,10 +168,12 @@ export default function PengaturanScreen() {
       { text: 'Batal', style: 'cancel' },
       {
         text: 'Hapus', style: 'destructive',
-        onPress: async () => {
-          await hapusDiskonPreset(preset.id);
-          setPresetFormMode(false);
-          await muat();
+        onPress: () => {
+          void (async () => {
+            await hapusDiskonPreset(preset.id);
+            setPresetFormMode(false);
+            await muat();
+          })();
         },
       },
     ]);
@@ -191,7 +193,7 @@ export default function PengaturanScreen() {
             <Field label="Alamat" icon="map-pin" value={alamat} onChange={setAlamat} placeholder="Alamat singkat" multiline />
             <Field label="Telepon" icon="phone" value={telepon} onChange={setTelepon} placeholder="08xx" keyboardType="phone-pad" />
             <Field label="Catatan kaki struk" icon="file" value={footer} onChange={setFooter} placeholder="cth: Terima kasih atas kunjungan Anda" multiline />
-            <Pressable style={styles.btnPrimary} onPress={simpanProfil}>
+            <Pressable style={styles.btnPrimary} onPress={() => { void simpanProfil(); }}>
               {profilTersimpan ? (
                 <View style={styles.btnРrimaryRow}>
                   <Icon name="check" size={18} color={Colors.onPrimary} strokeWidth={3} />
@@ -210,7 +212,7 @@ export default function PengaturanScreen() {
               {([58, 80] as const).map((w) => (
                 <Pressable
                   key={w}
-                  onPress={() => gantiLebar(w)}
+                  onPress={() => { void gantiLebar(w); }}
                   style={[styles.lebarBtn, lebar === w && styles.lebarBtnAktif]}
                 >
                   <Text style={[styles.lebarTxt, lebar === w && styles.lebarTxtAktif]}>{w} mm</Text>
@@ -248,7 +250,7 @@ export default function PengaturanScreen() {
           {/* Backup */}
           <Text style={styles.sectionLabel}>Data & Backup</Text>
           <View style={styles.card}>
-            <Pressable style={styles.btnOutline} onPress={handleExport} disabled={backupLoading !== null}>
+            <Pressable style={styles.btnOutline} onPress={() => { void handleExport(); }} disabled={backupLoading !== null}>
               {backupLoading === 'export'
                 ? <ActivityIndicator color={Colors.primary} />
                 : (
@@ -258,7 +260,7 @@ export default function PengaturanScreen() {
                   </>
                 )}
             </Pressable>
-            <Pressable style={[styles.btnOutline, { marginTop: Spacing.sm }]} onPress={handleImport} disabled={backupLoading !== null}>
+            <Pressable style={[styles.btnOutline, { marginTop: Spacing.sm }]} onPress={() => { void handleImport(); }} disabled={backupLoading !== null}>
               {backupLoading === 'import'
                 ? <ActivityIndicator color={Colors.primary} />
                 : (
@@ -325,7 +327,7 @@ export default function PengaturanScreen() {
                   <Text style={styles.formHapusTxt}>Hapus</Text>
                 </Pressable>
               )}
-              <Pressable style={styles.formSimpan} onPress={simpanPreset}>
+              <Pressable style={styles.formSimpan} onPress={() => { void simpanPreset(); }}>
                 <Text style={styles.formSimpanTxt}>{editPreset ? 'Simpan' : 'Tambah'}</Text>
               </Pressable>
             </View>
@@ -339,7 +341,7 @@ export default function PengaturanScreen() {
           >
             {presets.length === 0 ? (
               <Text style={styles.presetKosong}>
-                Belum ada preset. Tekan "Tambah" untuk membuat preset diskon pertama.
+                Belum ada preset. Tekan &quot;Tambah&quot; untuk membuat preset diskon pertama.
               </Text>
             ) : (
               presets.map((p) => (

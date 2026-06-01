@@ -1,7 +1,6 @@
 /**
  * AlertBackup — banner pengingat backup data di dashboard.
  */
-import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 import Icon from '../ui/icon';

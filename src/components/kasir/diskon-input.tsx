@@ -4,7 +4,6 @@
  * Menampilkan diskon terpilih saat ini. Mengetuk memanggil onPress; pemilih
  * diskon ditangani KeranjangPanel sebagai TUKAR-ISI di dalam sheet yang sama.
  */
-import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 import Icon from '../ui/icon';

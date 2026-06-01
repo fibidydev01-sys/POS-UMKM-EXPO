@@ -11,7 +11,7 @@
  *
  * Tetap murni View (tanpa lib chart) supaya ringan & tanpa dependency.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { LayoutChangeEvent} from 'react-native';
 import {
   View, Text, StyleSheet, Pressable

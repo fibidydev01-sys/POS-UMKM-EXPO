@@ -3,7 +3,7 @@
  *
  * PERUBAHAN: ikon 🔑 (emoji) diganti ikon vektor lucide (key) dalam lingkaran.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -52,7 +52,7 @@ export default function AktivasiScreen() {
           </View>
 
           <Pressable
-            onPress={submit}
+            onPress={() => { void submit(); }}
             disabled={kode.length < 8 || loading}
             style={({ pressed }) => [
               styles.btn,

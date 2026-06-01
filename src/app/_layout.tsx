@@ -11,7 +11,7 @@
  *
  * PERUBAHAN: ikon error ⚠️ (emoji) diganti ikon vektor lucide (warning).
  */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -27,7 +27,7 @@ export default function RootLayout() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         await initDatabase();
         setSiap(true);

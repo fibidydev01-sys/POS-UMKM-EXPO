@@ -2,7 +2,6 @@
  * KategoriList — baris chip kategori horizontal. Chip "Semua" (null) + tiap
  * kategori. Dipakai di Kasir & Menu sebagai filter.
  */
-import React from 'react';
 import { Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 import type { Kategori } from '../../lib/db/database';

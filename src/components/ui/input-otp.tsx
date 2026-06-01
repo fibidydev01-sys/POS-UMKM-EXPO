@@ -3,7 +3,7 @@
  * Menampilkan `length` kotak; mengetik mengisi berurutan. Satu TextInput
  * tersembunyi menangkap input agar keyboard & paste tetap mulus.
  */
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 

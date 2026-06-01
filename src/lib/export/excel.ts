@@ -21,7 +21,38 @@ import { formatTanggalJam } from '../utils/date';
 export interface HasilExport { ok: boolean; pesan: string; }
 export interface HasilImport { ok: boolean; pesan: string; jumlah?: number; }
 
-function angka(v: any): number {
+// Bentuk baris hasil query (subset kolom yang dipilih di SELECT).
+interface TrxRow {
+  nomor_order: string;
+  created_at: string;
+  status: string;
+  payment_method: string;
+  subtotal: number;
+  diskon_persen: number;
+  diskon_nominal: number;
+  grand_total: number;
+  uang_diterima: number | null;
+  kembalian: number | null;
+  void_reason: string | null;
+}
+
+interface ItemRow {
+  nomor_order: string;
+  nama_produk: string;
+  harga_satuan: number;
+  qty: number;
+  subtotal: number;
+  item_type: string;
+}
+
+interface MenuRow {
+  nama: string;
+  harga: number;
+  is_available: number;
+  is_deleted: number;
+}
+
+function angka(v: unknown): number {
   const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, ''));
   return isNaN(n) ? 0 : n;
 }
@@ -32,20 +63,20 @@ export async function exportExcel(): Promise<HasilExport> {
   try {
     const db = getDb();
 
-    const transaksi = await db.getAllAsync<any>(
+    const transaksi = await db.getAllAsync<TrxRow>(
       `SELECT nomor_order, created_at, status, payment_method,
               subtotal, diskon_persen, diskon_nominal, grand_total,
               uang_diterima, kembalian, void_reason
        FROM transaksi ORDER BY created_at DESC`
     );
-    const items = await db.getAllAsync<any>(
+    const items = await db.getAllAsync<ItemRow>(
       `SELECT t.nomor_order, ti.nama_produk, ti.harga_satuan, ti.qty,
               ti.subtotal, ti.item_type
        FROM transaction_item ti
        JOIN transaksi t ON t.id = ti.transaksi_id
        ORDER BY t.created_at DESC, ti.id ASC`
     );
-    const menu = await db.getAllAsync<any>(
+    const menu = await db.getAllAsync<MenuRow>(
       `SELECT nama, harga, is_available, is_deleted FROM menu_item`
     );
 
@@ -128,8 +159,8 @@ export async function importExcel(): Promise<HasilImport> {
     const shItem = wb.Sheets['Item Transaksi'];
     if (!shTrx) return { ok: false, pesan: 'Format file tidak dikenali (sheet "Transaksi" tidak ada).' };
 
-    const trxRows = XLSX.utils.sheet_to_json<any>(shTrx);
-    const itemRows = shItem ? XLSX.utils.sheet_to_json<any>(shItem) : [];
+    const trxRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(shTrx);
+    const itemRows = shItem ? XLSX.utils.sheet_to_json<Record<string, unknown>>(shItem) : [];
 
     const db = getDb();
     let jumlah = 0;

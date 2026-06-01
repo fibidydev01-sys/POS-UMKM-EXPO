@@ -1,7 +1,6 @@
 /**
  * MenuItemCard — kartu produk di tab Menu, dengan toggle ketersediaan & edit.
  */
-import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatRupiah } from '../../lib/utils/currency';

@@ -5,7 +5,7 @@
  * PERUBAHAN: emoji 🎁 (EmptyState) & karakter ＋ (FAB) diganti ikon vektor
  * lucide (gift, plus).
  */
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -14,6 +14,7 @@ import type { MenuItem, PromoRule } from '../lib/db/database';
 import { getMenuItems } from '../lib/db/menu';
 import { getPromoRules, tambahPromoRule, hapusPromoRule } from '../lib/db/promo-rule';
 import { formatTanggal } from '../lib/utils/date';
+import type { PromoRuleInput as FormPromoInput } from '../components/pengaturan/form-promo-rule';
 import FormPromoRule from '../components/pengaturan/form-promo-rule';
 import EmptyState from '../components/shared/empty-state';
 import Icon from '../components/ui/icon';
@@ -31,11 +32,19 @@ export default function PromoScreen() {
     setMenu(m.filter((x) => x.is_available === 1));
   }, []);
 
-  useFocusEffect(useCallback(() => { muat(); }, [muat]));
+  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
 
-  const simpan = async (input: any) => {
+  // Form mengirim FormPromoInput (nama, tipe, menu_item_id, nilai, tanggal_*).
+  // DB (tambahPromoRule) butuh bentuk lain (menu_item_id, tipe_promo, berlaku_*),
+  // jadi dipetakan di sini. 'diskon_item' dipetakan ke 'buy2get1' (tipe valid terdekat).
+  const simpan = async (input: FormPromoInput) => {
     try {
-      await tambahPromoRule(input);
+      await tambahPromoRule({
+        menu_item_id: input.menu_item_id,
+        tipe_promo: input.tipe === 'bogo' ? 'bogo' : 'buy2get1',
+        berlaku_mulai: input.tanggal_mulai ?? '',
+        berlaku_sampai: input.tanggal_selesai,
+      });
       setFormVisible(false);
       await muat();
     } catch {
@@ -46,7 +55,12 @@ export default function PromoScreen() {
   const konfirmasiHapus = (rule: PromoRule) => {
     Alert.alert('Nonaktifkan promo?', `Promo untuk "${rule.nama_produk}" akan dimatikan.`, [
       { text: 'Batal', style: 'cancel' },
-      { text: 'Nonaktifkan', style: 'destructive', onPress: async () => { await hapusPromoRule(rule.id); await muat(); } },
+      {
+        text: 'Nonaktifkan', style: 'destructive',
+        onPress: () => {
+          void (async () => { await hapusPromoRule(rule.id); await muat(); })();
+        },
+      },
     ]);
   };
 
@@ -92,7 +106,7 @@ export default function PromoScreen() {
         visible={formVisible}
         menuItems={menu}
         onTutup={() => setFormVisible(false)}
-        onSimpan={simpan}
+        onSimpan={(input) => { void simpan(input); }}
       />
     </SafeAreaView>
   );

@@ -9,7 +9,7 @@
  *   - Tombol silang dihapus (ditangani BottomSheet: showClose default false).
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';

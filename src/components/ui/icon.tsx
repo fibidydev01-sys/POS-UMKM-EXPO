@@ -13,7 +13,7 @@
  * CATATAN DEPENDENCY (tambahkan jika belum ada):
  *   npx expo install lucide-react-native react-native-svg
  */
-import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import {
   Home, ShoppingCart, UtensilsCrossed, ReceiptText, Settings,
   Wallet, CalendarDays, TrendingUp, Undo2, Gift, Tag, Flame,
@@ -79,7 +79,7 @@ export interface IconProps {
   color?: string;
   /** Ketebalan garis lucide (default 2). 2.25–2.5 terlihat lebih tegas. */
   strokeWidth?: number;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function Icon({ name, size = 22, color = '#000', strokeWidth = 2.25, style }: IconProps) {

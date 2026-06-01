@@ -13,7 +13,7 @@
  *   Props.onSimpan menerima objek PromoRuleInput.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';

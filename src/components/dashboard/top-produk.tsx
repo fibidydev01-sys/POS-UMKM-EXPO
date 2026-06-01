@@ -1,7 +1,6 @@
 /**
  * TopProdukList — daftar produk terlaris bulan ini (qty + omzet).
  */
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 import Icon from '../ui/icon';

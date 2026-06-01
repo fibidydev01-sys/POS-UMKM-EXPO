@@ -12,7 +12,6 @@
  *   qty > 0 → tampil stepper −/qty/+ di kanan; baris TIDAK pressable agar tap
  *   −/+ tidak ikut memicu penambahan dari baris.
  */
-import React from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import Icon from '../ui/icon';

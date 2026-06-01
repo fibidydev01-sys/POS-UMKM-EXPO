@@ -10,7 +10,6 @@
  *   - menu.tsx (kelola kategori — di dalam drawer)
  *   - pengaturan.tsx (preset diskon — gaya konsisten)
  */
-import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../constants/colors';
 import Icon from './icon';

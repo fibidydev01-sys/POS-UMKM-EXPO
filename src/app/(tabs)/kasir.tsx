@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 // SDK 56: expo-router tidak lagi izinkan import dari @react-navigation/* di kode app.
@@ -66,7 +66,7 @@ export default function KasirScreen() {
     setPromoRules(promo);
   }, []);
 
-  useFocusEffect(useCallback(() => { muat(); }, [muat]));
+  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
 
   const cart = useMemo(
     () => (features.promoEngine ? applyPromo(cartRaw, promoRules) : cartRaw),
@@ -252,7 +252,7 @@ export default function KasirScreen() {
         onTutup={() => setKeranjangBuka(false)}
         onUbahQty={ubahQty}
         onUbahDiskon={handleDiskonChange}
-        onBayar={bayar}
+        onBayar={(pm, uang) => { void bayar(pm, uang); }}
         onKosongkan={kosongkan}
       />
 
@@ -262,7 +262,7 @@ export default function KasirScreen() {
         trx={trxSelesai}
         items={itemsSelesai}
         mencetak={mencetak}
-        onCetak={cetak}
+        onCetak={() => { void cetak(); }}
         onSelesai={() => setStrukBuka(false)}
       />
     </ScreenLayout>

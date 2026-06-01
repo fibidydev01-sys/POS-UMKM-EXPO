@@ -12,7 +12,7 @@
  *   - Logika bisnis (qty, diskon, bayar, kembalian, BOGO) TIDAK BERUBAH.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
 import BottomSheet from '../ui/bottom-sheet';
 import type { IconName } from '../ui/icon';

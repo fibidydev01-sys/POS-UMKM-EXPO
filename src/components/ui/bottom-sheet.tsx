@@ -72,8 +72,7 @@ export default function BottomSheet({
   title,
   headerRight,
   children,
-  // snapPoints sengaja tidak didestructure — prop ini ada di interface tapi diabaikan.
-  showClose = false,
+  // snapPoints & showClose sengaja tidak didestructure — ada di interface tapi diabaikan.
   scrollable = false,
 }: BottomSheetProps) {
   const ref = useRef<SheetMethods | null>(null);
@@ -87,9 +86,13 @@ export default function BottomSheet({
 
   const hasHeader = !!(title || headerRight);
 
+  // Ref komponen sheet native tidak diekspos tipenya secara publik; cast aman.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const modalRef = ref as any;
+
   return (
     <BottomSheetModal
-      ref={ref as any}
+      ref={modalRef}
       snapPoints={[SHEET_HEIGHT]}
       enableDynamicSizing={false}
       enablePanDownToClose

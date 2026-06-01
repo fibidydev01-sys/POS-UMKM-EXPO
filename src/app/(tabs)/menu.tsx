@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
@@ -35,7 +35,7 @@ export default function MenuScreen() {
     setMenu(m);
   }, []);
 
-  useFocusEffect(useCallback(() => { muat(); }, [muat]));
+  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
 
   const namaKategoriMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -75,11 +75,13 @@ export default function MenuScreen() {
         { text: 'Batal', style: 'cancel' },
         {
           text: 'Hapus', style: 'destructive',
-          onPress: async () => {
-            await hapusMenuItem(target.id);
-            setFormVisible(false);
-            setItemEdit(null);
-            await muat();
+          onPress: () => {
+            void (async () => {
+              await hapusMenuItem(target.id);
+              setFormVisible(false);
+              setItemEdit(null);
+              await muat();
+            })();
           },
         },
       ]
@@ -109,10 +111,12 @@ export default function MenuScreen() {
         { text: 'Batal', style: 'cancel' },
         {
           text: 'Hapus', style: 'destructive',
-          onPress: async () => {
-            await hapusKategori(k.id);
-            if (filter === k.id) setFilter(null);
-            await muat();
+          onPress: () => {
+            void (async () => {
+              await hapusKategori(k.id);
+              if (filter === k.id) setFilter(null);
+              await muat();
+            })();
           },
         },
       ]
@@ -154,7 +158,7 @@ export default function MenuScreen() {
             item={item}
             namaKategori={item.kategori_id ? namaKategoriMap.get(item.kategori_id) : undefined}
             onEdit={() => bukaEdit(item)}
-            onToggle={(val) => ubahTersedia(item, val)}
+            onToggle={(val) => { void ubahTersedia(item, val); }}
           />
         )}
         ListEmptyComponent={
@@ -180,7 +184,7 @@ export default function MenuScreen() {
         kategori={kategori}
         item={itemEdit}
         onTutup={tutupForm}
-        onSimpan={simpanItem}
+        onSimpan={(input) => { void simpanItem(input); }}
         onHapus={itemEdit ? hapusItem : undefined}
       />
 
@@ -198,10 +202,10 @@ export default function MenuScreen() {
               placeholderTextColor={Colors.textSubtle}
               value={namaKatBaru}
               onChangeText={setNamaKatBaru}
-              onSubmitEditing={simpanKategori}
+              onSubmitEditing={() => { void simpanKategori(); }}
               returnKeyType="done"
             />
-            <Pressable style={styles.katAddBtn} onPress={simpanKategori}>
+            <Pressable style={styles.katAddBtn} onPress={() => { void simpanKategori(); }}>
               <Text style={styles.katAddTxt}>Tambah</Text>
             </Pressable>
           </View>

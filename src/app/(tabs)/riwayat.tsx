@@ -17,7 +17,7 @@
  * Tombol aksi drawer height: 52.
  */
 
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Alert,
   Platform, TextInput, ScrollView, useWindowDimensions,
@@ -74,7 +74,7 @@ export default function RiwayatScreen() {
     setConfig(c);
   }, []);
 
-  useFocusEffect(useCallback(() => { muat(); }, [muat]));
+  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
 
   const bukaDetail = async (trx: Transaksi) => {
     const items = await getItemsByTransaksi(trx.id);
@@ -123,17 +123,19 @@ export default function RiwayatScreen() {
         { text: 'Batal', style: 'cancel' },
         {
           text: 'Void', style: 'destructive',
-          onPress: async () => {
-            setVoidLoading(true);
-            try {
-              await voidTransaksi(target.id);
-              tutupDetail();
-              await muat();
-            } catch {
-              Alert.alert('Gagal', 'Tidak bisa void transaksi. Coba lagi.');
-            } finally {
-              setVoidLoading(false);
-            }
+          onPress: () => {
+            void (async () => {
+              setVoidLoading(true);
+              try {
+                await voidTransaksi(target.id);
+                tutupDetail();
+                await muat();
+              } catch {
+                Alert.alert('Gagal', 'Tidak bisa void transaksi. Coba lagi.');
+              } finally {
+                setVoidLoading(false);
+              }
+            })();
           },
         },
       ]
@@ -180,7 +182,7 @@ export default function RiwayatScreen() {
           return (
             <Pressable
               style={[styles.row, batal && styles.rowVoid]}
-              onPress={() => bukaDetail(item)}
+              onPress={() => { void bukaDetail(item); }}
             >
               <View style={styles.rowLeft}>
                 <View style={[styles.orderBadge, batal && styles.orderBadgeVoid]}>
@@ -263,7 +265,7 @@ export default function RiwayatScreen() {
               </Pressable>
               <Pressable
                 style={[styles.formConfirm, refundLoading && { opacity: 0.6 }]}
-                onPress={submitRefund}
+                onPress={() => { void submitRefund(); }}
                 disabled={refundLoading}
               >
                 <Text style={styles.formConfirmTxt}>
@@ -327,7 +329,7 @@ export default function RiwayatScreen() {
               )}
               <Pressable
                 style={[styles.aksiBtn, styles.aksiCetak, mencetak && { opacity: 0.6 }]}
-                onPress={cetakUlang}
+                onPress={() => { void cetakUlang(); }}
                 disabled={mencetak}
               >
                 <Icon name="printer" size={18} color={Colors.onPrimary} />

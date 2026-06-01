@@ -15,7 +15,6 @@
  *  - Back button Android menutup (onRequestClose → onSelesai).
  */
 
-import React from 'react';
 import {
   Modal, View, Text, StyleSheet, Pressable, ScrollView,
   ActivityIndicator, Platform, useWindowDimensions,

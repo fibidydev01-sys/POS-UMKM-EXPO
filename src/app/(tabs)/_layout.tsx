@@ -1,13 +1,13 @@
-import React from 'react';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ColorValue } from 'react-native';
 import { Colors, FontSize } from '../../constants/colors';
 import type { IconName } from '../../components/ui/icon';
 import Icon from '../../components/ui/icon';
 
 /** Tab icon berbasis lucide — tajam, konsisten dengan ikon lain di app. */
-function TabIcon({ name, color, focused }: { name: IconName; color: string; focused: boolean }) {
-  return <Icon name={name} size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.6 : 2.2} />;
+function TabIcon({ name, color, focused }: { name: IconName; color: ColorValue; focused: boolean }) {
+  return <Icon name={name} size={focused ? 24 : 22} color={color as string} strokeWidth={focused ? 2.6 : 2.2} />;
 }
 
 /**
