@@ -8,14 +8,44 @@
  *     paling stabil di New Architecture.
  *   - API komponen ini DIPERTAHANKAN sama seperti versi lama (visible, onClose,
  *     title, headerRight, snapPoints, scrollable, showClose) → drop-in untuk
- *     semua pemanggil.
+ *     semua pemanggil. Ditambah satu prop opsional baru: `footer`.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERBAIKAN SCROLL (PENTING — root cause bug "isi tenggelam / tak bisa scroll"):
+ *   Pada SDK 56, sheet @expo/ui di Android adalah Jetpack Compose ModalBottomSheet.
+ *   Gesture drag-vertikal DIKONSUMSI oleh sheet native, sehingga ScrollView /
+ *   FlatList React Native BIASA yang diletakkan di dalam <BottomSheetView> TIDAK
+ *   bisa di-scroll (gesture tidak sampai ke scroller). Ini perilaku yang
+ *   terdokumentasi; lihat expo/expo#46379.
+ *
+ *   SOLUSI RESMI: gunakan komponen scroll yang DI-RE-EXPORT oleh paket ini —
+ *   BottomSheetScrollView / BottomSheetFlatList / BottomSheetSectionList /
+ *   BottomSheetTextInput — yang sudah menangani koordinasi scroll di dalam
+ *   sheet native. Wrapper ini memakai BottomSheetScrollView untuk BODY, lalu
+ *   me-re-export keempat komponen itu agar drawer lain memakainya juga
+ *   (mengganti import ScrollView/FlatList biasa).
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * STRUKTUR TIGA-ZONA (sesuai desain: header & footer STICKY, body SCROLL):
+ *       ┌───────────────────────────────┐
+ *       │ HEADER  (title, →)  STICKY     │  ← tidak ikut scroll
+ *       ├───────────────────────────────┤
+ *       │ BODY    (BottomSheetScrollView)│  ← satu-satunya area yang scroll
+ *       ├───────────────────────────────┤
+ *       │ FOOTER  (opsional)  STICKY     │  ← tetap menempel di bawah
+ *       └───────────────────────────────┘
+ *
+ *   - Header & footer adalah SIBLING dari body (di luar scroller) sehingga
+ *     mereka TETAP DIAM saat body di-scroll — inilah arti "sticky by design".
+ *   - `scrollable` (default true): body dibungkus BottomSheetScrollView.
+ *     Set `scrollable={false}` bila konten mengelola scroll-nya sendiri
+ *     (mis. memakai BottomSheetFlatList langsung sebagai children).
  *
  * PERUBAHAN v3:
  *   - TOMBOL SILANG (✕) DIHAPUS dari semua drawer. showClose default = false.
  *     Tutup drawer cukup lewat gesture pan-down / back button (perilaku native).
- *   - BACKGROUND TRANSPARAN: root & body tidak lagi memakai Colors.bg.
- *     Dengan begitu isi menyatu dengan warna sheet native (tidak ada lagi
- *     "kotak warna" di dalam drawer). Hanya teks & tombol yang berwarna.
+ *   - BACKGROUND TRANSPARAN: root & body tidak memakai Colors.bg agar isi
+ *     menyatu dengan warna sheet native (tidak ada "kotak warna" di dalam drawer).
  *
  * TINGGI SERAGAM:
  *   Semua sheet di-lock ke SHEET_HEIGHT (90%). snapPoints prop diterima tapi
@@ -28,13 +58,26 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BottomSheetModal,
   BottomSheetView,
+  BottomSheetScrollView,
 } from '@expo/ui/community/bottom-sheet';
 import { Colors, FontSize, Spacing } from '../../constants/colors';
+
+/**
+ * Re-export komponen scroll-aware dari @expo/ui. Drawer lain meng-import dari
+ * SINI (bukan dari 'react-native') agar scroll & input bekerja di dalam sheet
+ * native. Lihat penjelasan "PERBAIKAN SCROLL" di atas.
+ */
+export {
+  BottomSheetScrollView,
+  BottomSheetFlatList,
+  BottomSheetSectionList,
+  BottomSheetTextInput,
+} from '@expo/ui/community/bottom-sheet';
 
 /** Tinggi TUNGGAL untuk semua drawer di aplikasi ini. Ubah di sini = ubah semua. */
 const SHEET_HEIGHT = '90%';
@@ -50,6 +93,11 @@ export interface BottomSheetProps {
   headerRight?: React.ReactNode;
   children: React.ReactNode;
   /**
+   * Footer STICKY (tidak ikut scroll). Mis. tombol aksi utama (Bayar/Simpan).
+   * Opsional — bila tidak diisi, tidak ada footer (perilaku lama tetap sama).
+   */
+  footer?: React.ReactNode;
+  /**
    * @deprecated Diabaikan. Semua sheet menggunakan SHEET_HEIGHT (90%) secara otomatis.
    * Prop ini hanya ada agar pemanggil lama tidak perlu diubah.
    */
@@ -59,7 +107,11 @@ export interface BottomSheetProps {
    * dari seluruh aplikasi). Biarkan default — jangan set true.
    */
   showClose?: boolean;
-  /** Bila true, isi dibungkus ScrollView. Default: false (View flex:1). */
+  /**
+   * Bila true (DEFAULT), body dibungkus BottomSheetScrollView (area scroll
+   * tunggal). Set false bila konten mengelola scroll sendiri (mis. memberi
+   * BottomSheetFlatList sebagai children).
+   */
   scrollable?: boolean;
 }
 
@@ -72,8 +124,9 @@ export default function BottomSheet({
   title,
   headerRight,
   children,
+  footer,
   // snapPoints & showClose sengaja tidak didestructure — ada di interface tapi diabaikan.
-  scrollable = false,
+  scrollable = true,
 }: BottomSheetProps) {
   const ref = useRef<SheetMethods | null>(null);
   const insets = useSafeAreaInsets();
@@ -85,6 +138,7 @@ export default function BottomSheet({
   }, [visible]);
 
   const hasHeader = !!(title || headerRight);
+  const hasFooter = !!footer;
 
   // Ref komponen sheet native tidak diekspos tipenya secara publik; cast aman.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,7 +152,9 @@ export default function BottomSheet({
       enablePanDownToClose
       onDismiss={onClose}
     >
-      <BottomSheetView style={[styles.root, { paddingBottom: insets.bottom }]}>
+      {/* paddingBottom Safe Area dipindah ke footer/body terbawah agar tidak
+          memotong area scroll & footer tetap di atas gesture bar. */}
+      <BottomSheetView style={styles.root}>
         {hasHeader && (
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{title ?? ''}</Text>
@@ -106,17 +162,30 @@ export default function BottomSheet({
           </View>
         )}
 
+        {/* BODY: satu-satunya area scroll. Memakai BottomSheetScrollView agar
+            gesture scroll bekerja di dalam sheet native (lihat #46379). */}
         {scrollable ? (
-          <ScrollView
+          <BottomSheetScrollView
             style={styles.body}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              // Bila tak ada footer, beri ruang Safe Area di akhir konten.
+              !hasFooter && { paddingBottom: insets.bottom },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {children}
-          </ScrollView>
+          </BottomSheetScrollView>
         ) : (
           <View style={styles.body}>{children}</View>
+        )}
+
+        {/* FOOTER STICKY: sibling dari body → tidak ikut scroll. */}
+        {hasFooter && (
+          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
+            {footer}
+          </View>
         )}
       </BottomSheetView>
     </BottomSheetModal>
@@ -125,7 +194,6 @@ export default function BottomSheet({
 
 const styles = StyleSheet.create({
   // TRANSPARAN: warna sheet ditentukan oleh komponen native @expo/ui.
-  // Tidak ada Colors.bg di sini agar isi menyatu dengan drawer.
   root: { flex: 1, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
@@ -140,4 +208,11 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   body: { flex: 1, backgroundColor: 'transparent' },
   scrollContent: { flexGrow: 1 },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: 'transparent',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
 });

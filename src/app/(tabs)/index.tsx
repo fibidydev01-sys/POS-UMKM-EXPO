@@ -13,13 +13,32 @@ import {
 import type { OmzetHari } from '../../lib/db/omzet-banding';
 import { getOmzetDuaMinggu } from '../../lib/db/omzet-banding';
 import { getConfig } from '../../lib/db/pengaturan';
+import type { StockReport } from '../../lib/db/stock';
+import { getStockReport } from '../../lib/db/stock';
+// Laporan stok BAHAN (migration v4).
+import type { BahanReport } from '../../lib/db/bahan';
+import { getBahanReport } from '../../lib/db/bahan';
+import { getMenuItems } from '../../lib/db/menu';
+import type { MenuItem } from '../../lib/db/database';
 
 import ScreenLayout from '../../components/ui/screen-layout';
 import StatCard from '../../components/dashboard/stat-card';
 import ChartOmzet from '../../components/dashboard/chart-omzet';
 import TopProdukList from '../../components/dashboard/top-produk';
 import AnalisaDiskonList from '../../components/dashboard/analisa-diskon';
+import LaporanStok from '../../components/dashboard/laporan-stok';
+import LaporanBahan from '../../components/dashboard/laporan-bahan';
 import AlertBackup from '../../components/shared/alert-backup';
+import StokOpname from '../../components/menu/stok-opname';
+import BahanKelola from '../../components/menu/bahan-kelola';
+
+const STOK_KOSONG: StockReport = {
+  items: [], totalNilai: 0, totalSku: 0, jumlahMenipis: 0, jumlahHabis: 0,
+};
+
+const BAHAN_KOSONG: BahanReport = {
+  items: [], totalNilai: 0, totalSku: 0, jumlahMenipis: 0, jumlahHabis: 0,
+};
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -29,12 +48,22 @@ export default function DashboardScreen() {
   const [omzetLalu, setOmzetLalu] = useState<OmzetHari[]>([]);
   const [top, setTop] = useState<TopProduk[]>([]);
   const [analisa, setAnalisa] = useState<AnalisaDiskon[]>([]);
+  const [stok, setStok] = useState<StockReport>(STOK_KOSONG);
+  const [bahan, setBahan] = useState<BahanReport>(BAHAN_KOSONG);
   const [refreshing, setRefreshing] = useState(false);
   const [tutupBackup, setTutupBackup] = useState(false);
 
+  // Sheet kelola stok (restock/opname) — dibuka dari kartu laporan stok.
+  const [menuStok, setMenuStok] = useState<MenuItem[]>([]);
+  const [kelolaStokBuka, setKelolaStokBuka] = useState(false);
+
+  // Sheet kelola BAHAN — dibuka dari kartu laporan stok bahan.
+  const [bahanBuka, setBahanBuka] = useState(false);
+
   const muat = useCallback(async () => {
-    const [cfg, r, banding, t, ad] = await Promise.all([
+    const [cfg, r, banding, t, ad, sr, br] = await Promise.all([
       getConfig(), getRingkasanOmzet(), getOmzetDuaMinggu(), getTopProduk(5), getAnalisaDiskon(),
+      getStockReport(), getBahanReport(),
     ]);
     setNama(cfg.nama_umkm);
     setRingkasan(r);
@@ -42,6 +71,8 @@ export default function DashboardScreen() {
     setOmzetLalu(banding.lalu);
     setTop(t);
     setAnalisa(ad);
+    setStok(sr);
+    setBahan(br);
   }, []);
 
   useFocusEffect(useCallback(() => { void muat(); }, [muat]));
@@ -51,6 +82,19 @@ export default function DashboardScreen() {
     await muat();
     setRefreshing(false);
   };
+
+  const bukaKelolaStok = async () => {
+    const items = await getMenuItems();
+    setMenuStok(items);
+    setKelolaStokBuka(true);
+  };
+
+  // Dipanggil StokOpname setelah ada perubahan stok: segarkan data dashboard
+  // sekaligus daftar produk di dalam sheet (sheet tetap terbuka).
+  const onStokBerubah = useCallback(async () => {
+    const [items] = await Promise.all([getMenuItems(), muat()]);
+    setMenuStok(items);
+  }, [muat]);
 
   const perluBackup = !tutupBackup && (ringkasan?.bulanIni ?? 0) > 0 && (ringkasan?.orderBulanIni ?? 0) >= 10;
   const adaRefund = (ringkasan?.jumlahRefundBulan ?? 0) > 0;
@@ -116,6 +160,16 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* Laporan stok produk — masuk dashboard analitik. */}
+        <View style={styles.section}>
+          <LaporanStok data={stok} onKelola={() => { void bukaKelolaStok(); }} />
+        </View>
+
+        {/* Laporan stok BAHAN (migration v4) — tampil setelah stok produk. */}
+        <View style={styles.section}>
+          <LaporanBahan data={bahan} onKelola={() => setBahanBuka(true)} />
+        </View>
+
         <View style={styles.section}>
           <ChartOmzet data={omzetIni} dataLalu={omzetLalu} />
         </View>
@@ -130,6 +184,21 @@ export default function DashboardScreen() {
 
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
+
+      {/* Sheet kelola stok (restock & opname). */}
+      <StokOpname
+        visible={kelolaStokBuka}
+        items={menuStok}
+        onTutup={() => setKelolaStokBuka(false)}
+        onPerubahan={() => { void onStokBerubah(); }}
+      />
+
+      {/* Sheet kelola BAHAN (restock & opname bahan). */}
+      <BahanKelola
+        visible={bahanBuka}
+        onTutup={() => setBahanBuka(false)}
+        onPerubahan={() => { void muat(); }}
+      />
     </ScreenLayout>
   );
 }

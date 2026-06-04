@@ -9,6 +9,14 @@
  *   - Transaksi punya kolom qris_provider / qris_external_id (referensi PG).
  *   - UmkmConfig punya `tier` (v1/v2/v3) dari hasil aktivasi.
  *
+ * PERUBAHAN (manajemen stok, migration v3):
+ *   - MenuItem punya kolom stok & min_stock. SEMUA produk dilacak stoknya.
+ *   - Tipe StockLog untuk riwayat mutasi stok.
+ *
+ * PERUBAHAN (bahan + resep, migration v4 — HYBRID):
+ *   - MenuItem punya kolom track_mode: 'product' | 'recipe'.
+ *   - Tipe Bahan, Resep (BOM line), BahanLog.
+ *
  * SUMBER KEBENARAN NAMA FIELD CONFIG:
  *   nama_umkm, alamat, no_telp, footer_struk, paper_width, tier
  */
@@ -23,6 +31,13 @@ export type TipePromo = 'bogo' | 'buy2get1';
 export type StatusTransaksi = 'completed' | 'void' | 'refund';
 export type CartItemType = 'normal' | 'promo_free';
 export type Tier = 'v1' | 'v2' | 'v3';
+export type StockLogType = 'in' | 'out' | 'opname';
+
+/** Mode pelacakan stok sebuah menu (HYBRID, migration v4). */
+export type TrackMode = 'product' | 'recipe';
+
+/** Jenis mutasi bahan (mirror StockLogType, untuk bahan). */
+export type BahanLogType = 'in' | 'out' | 'opname';
 
 export interface Kategori {
   id: number;
@@ -36,6 +51,54 @@ export interface MenuItem {
   harga: number;
   kategori_id: number | null;
   is_available: number; // 0 | 1
+  created_at: string;
+  // Manajemen stok (migration v3). SEMUA produk dilacak (mode 'product').
+  stok: number;
+  min_stock: number;
+  // Mode pelacakan (migration v4). 'product' (kolom stok di atas) | 'recipe' (dari bahan).
+  track_mode: TrackMode;
+}
+
+export interface StockLog {
+  id: number;
+  menu_item_id: number;
+  type: StockLogType;
+  qty: number;            // + masuk, - keluar (opname = selisih)
+  stok_sebelum: number;
+  stok_sesudah: number;
+  note: string | null;
+  created_at: string;
+}
+
+/** Bahan baku (ingredient). stok REAL & BOLEH MINUS. */
+export interface Bahan {
+  id: number;
+  nama: string;
+  satuan: string;     // 'g' | 'kg' | 'ml' | 'l' | 'pcs' | 'bungkus' | ...
+  stok: number;       // REAL, boleh minus
+  min_stock: number;  // REAL
+  harga_beli: number; // untuk nilai stok bahan
+  is_deleted: number; // 0 | 1
+  created_at: string;
+}
+
+/** Baris resep / BOM: pemakaian 1 bahan untuk 1 porsi sebuah menu. */
+export interface Resep {
+  id: number;
+  menu_item_id: number;
+  bahan_id: number;
+  qty: number;        // jumlah bahan per 1 porsi menu (REAL)
+}
+
+/** Audit mutasi bahan (qty REAL, boleh minus). */
+export interface BahanLog {
+  id: number;
+  bahan_id: number;
+  type: BahanLogType;
+  qty: number;
+  stok_sebelum: number;
+  stok_sesudah: number;
+  note: string | null;
   created_at: string;
 }
 

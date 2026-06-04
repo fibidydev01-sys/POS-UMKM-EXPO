@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
-# collect-files.sh — POS UMKM File Collector
-# Run from: d:/BOILERPLATE/pos-umkm
+# collect-files.sh — POS UMKM Mobile File Collector
+# Run from: d:/BOILERPLATE/pos-umkm/mobile
 # Output  : collection/COLLECT-<timestamp>.txt
 #           collection/typecheck-<timestamp>.txt
 #           collection/lint-<timestamp>.txt
@@ -22,7 +22,7 @@ RESET='\033[0m'
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║         FILE COLLECTOR — POS UMKM                ║${RESET}"
+echo -e "${BOLD}║       FILE COLLECTOR — POS UMKM MOBILE           ║${RESET}"
 echo -e "${BOLD}╠══════════════════════════════════════════════════╣${RESET}"
 echo -e "${BOLD}║  LAYERS                                          ║${RESET}"
 echo -e "${BOLD}║  1.${RESET}  ${CYAN}app/${RESET}                                   ${BOLD}║${RESET}"
@@ -43,11 +43,11 @@ echo -e "${BOLD}║  15.${RESET} ${CYAN}constants/${RESET}                      
 echo -e "${BOLD}║  16.${RESET} ${CYAN}lib/payment/${RESET}                           ${BOLD}║${RESET}"
 echo -e "${BOLD}║  17.${RESET} ${CYAN}lib/pg/${RESET}                                ${BOLD}║${RESET}"
 echo -e "${BOLD}║  18.${RESET} ${CYAN}lib/secure/${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  19.${RESET} ${CYAN}migrations/${RESET}                            ${BOLD}║${RESET}"
+echo -e "${BOLD}║  19.${RESET} ${CYAN}lib/notification/${RESET}                      ${BOLD}║${RESET}"
 echo -e "${BOLD}║                                                  ║${RESET}"
 echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–7)${RESET}                   ${BOLD}║${RESET}"
-echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (8–18)${RESET}                         ${BOLD}║${RESET}"
-echo -e "${BOLD}║  66.${RESET} ${GREEN}ALL PAYMENT (8,13,14,16,17,19 + 3,5)${RESET}   ${BOLD}║${RESET}"
+echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (8–19)${RESET}                         ${BOLD}║${RESET}"
+echo -e "${BOLD}║  66.${RESET} ${GREEN}ALL PAYMENT (8,13,14,16,17 + 3,5)${RESET}      ${BOLD}║${RESET}"
 echo -e "${BOLD}║  99.${RESET} ${GREEN}ALL LAYERS (everything)${RESET}                ${BOLD}║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════╝${RESET}"
 echo ""
@@ -86,7 +86,7 @@ echo -e "${BOLD}▶ Collecting source files...${RESET}"
 
 {
 echo "################################################################"
-echo "##  POS UMKM — SOURCE COLLECTION"
+echo "##  POS UMKM MOBILE — SOURCE COLLECTION"
 echo "##  Generated  : $(date '+%Y-%m-%d %H:%M:%S')"
 echo "##  Selection  : $INPUT"
 echo "##  Typecheck  : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
@@ -235,9 +235,9 @@ run_layer() {
             done < <(find "$ROOT/lib/secure" -type f -name "*.ts" -print0 | sort -z)
             ;;
         19)
-            sec "migrations/"
+            sec "lib/notification/"
             while IFS= read -r -d '' f; do cf "$f"
-            done < <(find "./migrations" -type f \( -name "*.sql" -o -name "*.ts" \) -print0 | sort -z)
+            done < <(find "$ROOT/lib/notification" -type f -name "*.ts" -print0 | sort -z)
             ;;
         *)
             echo -e "  ${RED}⚠ Pilihan tidak valid: $1${RESET}"
@@ -251,9 +251,9 @@ if echo "$INPUT" | grep -qw "99"; then
 elif echo "$INPUT" | grep -qw "88"; then
     for i in 2 3 4 5 6 7; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "77"; then
-    for i in 8 9 10 11 12 13 14 16 17 18; do run_layer $i; done
+    for i in 8 9 10 11 12 13 14 16 17 18 19; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "66"; then
-    for i in 8 13 14 16 17 19 3 5; do run_layer $i; done
+    for i in 8 13 14 16 17 3 5; do run_layer $i; done
 else
     for i in $INPUT; do run_layer "$i"; done
 fi
@@ -286,5 +286,3 @@ echo "Coverage  : $pct%"
 echo "Typecheck : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 echo "Lint      : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 } >> "$FILE"
-SCRIPT
-echo "done"

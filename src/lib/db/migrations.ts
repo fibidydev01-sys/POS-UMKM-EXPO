@@ -6,6 +6,18 @@
  *
  * Menambah migrasi baru: tambahkan entri ke array MIGRATIONS dengan version
  * berikutnya. JANGAN mengubah migrasi lama yang sudah rilis.
+ *
+ * PERUBAHAN v3 (manajemen stok):
+ *   - Kolom stok, min_stock pada menu_item.
+ *   - Tabel stock_log (riwayat mutasi stok in/out/opname).
+ *
+ * PERUBAHAN v4 (bahan + resep / BOM — HYBRID):
+ *   - menu_item.track_mode: 'product' (lacak stok menu, perilaku lama) | 'recipe'
+ *     (stok diturunkan dari bahan via resep). Default 'product' → data lama tidak
+ *     berubah perilaku.
+ *   - Tabel bahan (ingredient): stok REAL boleh minus, satuan bebas per bahan.
+ *   - Tabel resep (BOM line): menu_item → bahan, qty per 1 porsi menu.
+ *   - Tabel bahan_log: audit mutasi bahan (mirror stock_log untuk bahan).
  */
 import type * as SQLite from 'expo-sqlite';
 
@@ -130,6 +142,95 @@ const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_session_status ON payment_session(status);
       CREATE INDEX IF NOT EXISTS idx_session_created ON payment_session(created_at);
+    `,
+  },
+  {
+    version: 3,
+    name: 'stock_management',
+    sql: `
+      -- Kolom stok pada menu_item. SEMUA produk dilacak stoknya.
+      --   stok      : jumlah stok saat ini (bisa minus jika terjual melebihi catatan;
+      --               kita clamp di layer logic, tapi kolom tetap izinkan untuk audit).
+      --   min_stock : ambang batas "stok menipis" untuk memicu notifikasi.
+      ALTER TABLE menu_item ADD COLUMN stok INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE menu_item ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 5;
+
+      -- Riwayat mutasi stok. Sumber kebenaran audit pergerakan stok.
+      --   type : 'in'      → restock / barang masuk (qty positif)
+      --          'out'     → terjual / keluar       (qty negatif)
+      --          'opname'  → penyesuaian fisik      (qty = selisih, bisa +/-)
+      CREATE TABLE IF NOT EXISTS stock_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        menu_item_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        qty INTEGER NOT NULL,
+        stok_sebelum INTEGER NOT NULL,
+        stok_sesudah INTEGER NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (menu_item_id) REFERENCES menu_item(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_stocklog_menu ON stock_log(menu_item_id);
+      CREATE INDEX IF NOT EXISTS idx_stocklog_created ON stock_log(created_at);
+    `,
+  },
+  {
+    version: 4,
+    name: 'bahan_resep_hybrid',
+    sql: `
+      -- Mode pelacakan stok per menu (HYBRID):
+      --   'product' → pakai kolom stok/min_stock menu (perilaku v3, default).
+      --   'recipe'  → stok diturunkan dari bahan via tabel resep.
+      -- Default 'product' membuat SEMUA menu lama tetap berperilaku sama.
+      ALTER TABLE menu_item ADD COLUMN track_mode TEXT NOT NULL DEFAULT 'product';
+
+      -- Bahan baku (ingredient). stok REAL & BOLEH MINUS (warung tetap jualan).
+      --   satuan : bebas per bahan ('g','kg','ml','l','pcs','bungkus', dst).
+      --   harga_beli : untuk menghitung nilai stok bahan (Rp).
+      CREATE TABLE IF NOT EXISTS bahan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama TEXT NOT NULL,
+        satuan TEXT NOT NULL DEFAULT 'pcs',
+        stok REAL NOT NULL DEFAULT 0,
+        min_stock REAL NOT NULL DEFAULT 0,
+        harga_beli REAL NOT NULL DEFAULT 0,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+      );
+
+      -- Resep / BOM: 1 baris = pemakaian 1 bahan untuk 1 porsi sebuah menu.
+      --   qty : jumlah bahan per 1 porsi menu (REAL, sesuai satuan bahan).
+      -- UNIQUE(menu_item_id, bahan_id) → 1 bahan maksimal 1 baris per menu.
+      CREATE TABLE IF NOT EXISTS resep (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        menu_item_id INTEGER NOT NULL,
+        bahan_id INTEGER NOT NULL,
+        qty REAL NOT NULL,
+        UNIQUE(menu_item_id, bahan_id),
+        FOREIGN KEY (menu_item_id) REFERENCES menu_item(id) ON DELETE CASCADE,
+        FOREIGN KEY (bahan_id) REFERENCES bahan(id) ON DELETE CASCADE
+      );
+
+      -- Audit mutasi bahan (mirror stock_log, tapi qty REAL & boleh minus).
+      --   type : 'in' (restock) | 'out' (konsumsi penjualan) | 'opname' (selisih).
+      CREATE TABLE IF NOT EXISTS bahan_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bahan_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        qty REAL NOT NULL,
+        stok_sebelum REAL NOT NULL,
+        stok_sesudah REAL NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (bahan_id) REFERENCES bahan(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_bahan_deleted ON bahan(is_deleted);
+      CREATE INDEX IF NOT EXISTS idx_resep_menu ON resep(menu_item_id);
+      CREATE INDEX IF NOT EXISTS idx_resep_bahan ON resep(bahan_id);
+      CREATE INDEX IF NOT EXISTS idx_bahanlog_bahan ON bahan_log(bahan_id);
+      CREATE INDEX IF NOT EXISTS idx_bahanlog_created ON bahan_log(created_at);
     `,
   },
 ];

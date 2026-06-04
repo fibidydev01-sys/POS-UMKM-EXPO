@@ -10,12 +10,18 @@ import {
   getMenuItems, tambahMenuItem, updateMenuItem, toggleTersedia, hapusMenuItem
 } from '../../lib/db/menu';
 import ScreenLayout from '../../components/ui/screen-layout';
-import BottomSheet from '../../components/ui/bottom-sheet';
+// BottomSheetFlatList di-import dari wrapper agar daftar DI DALAM sheet bisa
+// di-scroll di sheet native (lihat bottom-sheet.tsx / expo#46379). FlatList RN
+// biasa tetap dipakai untuk daftar produk utama (di luar sheet).
+import BottomSheet, { BottomSheetFlatList } from '../../components/ui/bottom-sheet';
 import Icon from '../../components/ui/icon';
 import PickerRow from '../../components/ui/picker-row';
 import KategoriList from '../../components/menu/kategori-list';
 import MenuItemCard from '../../components/menu/menu-item-card';
 import FormMenuItem from '../../components/menu/form-menu-item';
+import StokOpname from '../../components/menu/stok-opname';
+import BahanKelola from '../../components/menu/bahan-kelola';
+import ResepEditor from '../../components/menu/resep-editor';
 import EmptyState from '../../components/shared/empty-state';
 
 export default function MenuScreen() {
@@ -28,6 +34,16 @@ export default function MenuScreen() {
 
   const [katVisible, setKatVisible] = useState(false);
   const [namaKatBaru, setNamaKatBaru] = useState('');
+
+  // Sheet kelola stok (restock & opname) — produk mode 'product'.
+  const [stokVisible, setStokVisible] = useState(false);
+
+  // Sheet kelola BAHAN (v4).
+  const [bahanVisible, setBahanVisible] = useState(false);
+
+  // Sheet editor RESEP per menu (v4).
+  const [resepItem, setResepItem] = useState<MenuItem | null>(null);
+  const [resepVisible, setResepVisible] = useState(false);
 
   const muat = useCallback(async () => {
     const [k, m] = await Promise.all([getKategori(), getMenuItems()]);
@@ -52,6 +68,8 @@ export default function MenuScreen() {
   const bukaEdit = (item: MenuItem) => { setItemEdit(item); setFormVisible(true); };
 
   const tutupForm = () => { setFormVisible(false); setItemEdit(null); };
+
+  const bukaResep = (item: MenuItem) => { setResepItem(item); setResepVisible(true); };
 
   const simpanItem = async (input: MenuItemInput) => {
     try {
@@ -124,9 +142,19 @@ export default function MenuScreen() {
   };
 
   const headerRight = (
-    <Pressable style={styles.kelolaBtn} onPress={() => setKatVisible(true)}>
-      <Text style={styles.kelolaTxt}>Kategori</Text>
-    </Pressable>
+    <View style={styles.headerBtns}>
+      <Pressable style={styles.kelolaBtn} onPress={() => setBahanVisible(true)}>
+        <Icon name="empty-box" size={14} color={Colors.accent} strokeWidth={2.4} />
+        <Text style={styles.kelolaTxt}>Bahan</Text>
+      </Pressable>
+      <Pressable style={styles.kelolaBtn} onPress={() => setStokVisible(true)}>
+        <Icon name="empty-box" size={14} color={Colors.accent} strokeWidth={2.4} />
+        <Text style={styles.kelolaTxt}>Stok</Text>
+      </Pressable>
+      <Pressable style={styles.kelolaBtn} onPress={() => setKatVisible(true)}>
+        <Text style={styles.kelolaTxt}>Kategori</Text>
+      </Pressable>
+    </View>
   );
 
   const fab = (
@@ -149,17 +177,32 @@ export default function MenuScreen() {
         </View>
       )}
 
+      {/* Daftar produk utama — FlatList RN biasa (BUKAN di dalam sheet). */}
       <FlatList
         data={menuTampil}
         keyExtractor={(it) => String(it.id)}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <MenuItemCard
-            item={item}
-            namaKategori={item.kategori_id ? namaKategoriMap.get(item.kategori_id) : undefined}
-            onEdit={() => bukaEdit(item)}
-            onToggle={(val) => { void ubahTersedia(item, val); }}
-          />
+          <View style={styles.cardWrap}>
+            <MenuItemCard
+              item={item}
+              namaKategori={item.kategori_id ? namaKategoriMap.get(item.kategori_id) : undefined}
+              onEdit={() => bukaEdit(item)}
+              onToggle={(val) => { void ubahTersedia(item, val); }}
+            />
+            {/* Baris kecil: status mode + tombol Resep (v4). */}
+            <View style={styles.resepBar}>
+              <View style={[styles.modeTag, item.track_mode === 'recipe' ? styles.modeTagRecipe : styles.modeTagProduct]}>
+                <Text style={[styles.modeTagTeks, item.track_mode === 'recipe' ? styles.modeTagTeksRecipe : styles.modeTagTeksProduct]}>
+                  {item.track_mode === 'recipe' ? 'Stok dari bahan' : `Stok produk: ${item.stok}`}
+                </Text>
+              </View>
+              <Pressable style={styles.resepBtn} onPress={() => bukaResep(item)} hitSlop={6}>
+                <Icon name="tag" size={13} color={Colors.primary} strokeWidth={2.4} />
+                <Text style={styles.resepTxt}>Resep</Text>
+              </Pressable>
+            </View>
+          </View>
         )}
         ListEmptyComponent={
           <EmptyState
@@ -188,11 +231,39 @@ export default function MenuScreen() {
         onHapus={itemEdit ? hapusItem : undefined}
       />
 
-      {/* Kelola kategori — DESAIN MIRIP PICKER DISKON (baris seragam PickerRow). */}
+      {/* Kelola stok produk (restock & opname) */}
+      <StokOpname
+        visible={stokVisible}
+        items={menu}
+        onTutup={() => setStokVisible(false)}
+        onPerubahan={() => { void muat(); }}
+      />
+
+      {/* Kelola BAHAN (v4) */}
+      <BahanKelola
+        visible={bahanVisible}
+        onTutup={() => setBahanVisible(false)}
+        onPerubahan={() => { void muat(); }}
+      />
+
+      {/* Editor RESEP per menu (v4) */}
+      <ResepEditor
+        visible={resepVisible}
+        menu={resepItem}
+        onTutup={() => { setResepVisible(false); setResepItem(null); }}
+        onPerubahan={() => { void muat(); }}
+      />
+
+      {/* Kelola kategori — DESAIN MIRIP PICKER DISKON (baris seragam PickerRow).
+          scrollable={false}: daftar dikelola sendiri oleh BottomSheetFlatList
+          (scroll-aware di sheet native). Input "tambah" jadi header sticky
+          karena diletakkan sebagai sibling DI ATAS scroller (ListHeaderComponent
+          di sini ikut scroll — tetapi input ringkas, dan body memang scroll). */}
       <BottomSheet
         visible={katVisible}
         onClose={() => setKatVisible(false)}
         title="Kelola Kategori"
+        scrollable={false}
       >
         <View style={styles.katBody}>
           <View style={styles.katInputRow}>
@@ -210,14 +281,15 @@ export default function MenuScreen() {
             </Pressable>
           </View>
 
-          <FlatList
+          <BottomSheetFlatList
             data={kategori}
-            keyExtractor={(k) => String(k.id)}
+            keyExtractor={(k: Kategori) => String(k.id)}
             style={styles.katList}
             contentContainerStyle={styles.katListContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={<Text style={styles.katKosong}>Belum ada kategori.</Text>}
-            renderItem={({ item }) => (
+            renderItem={({ item }: { item: Kategori }) => (
               <PickerRow label={item.nama} onDelete={() => konfirmasiHapusKategori(item)} />
             )}
           />
@@ -228,13 +300,31 @@ export default function MenuScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   kelolaBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radii.full,
   },
   kelolaTxt: { color: Colors.accent, fontWeight: '700', fontSize: FontSize.sm },
   filterWrap: { paddingLeft: Spacing.lg, paddingBottom: Spacing.sm },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: 120, gap: Spacing.sm },
+
+  // Pembungkus kartu + baris resep (v4).
+  cardWrap: { gap: Spacing.xs },
+  resepBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xs,
+  },
+  modeTag: { borderRadius: Radii.sm, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
+  modeTagProduct: { backgroundColor: Colors.surfaceAlt },
+  modeTagRecipe: { backgroundColor: Colors.primarySoft },
+  modeTagTeks: { fontSize: FontSize.xs, fontWeight: '700' },
+  modeTagTeksProduct: { color: Colors.textMuted },
+  modeTagTeksRecipe: { color: Colors.primaryDark },
+  resepBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  resepTxt: { color: Colors.primary, fontWeight: '800', fontSize: FontSize.sm },
+
   emptyBtn: {
     backgroundColor: Colors.primary, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
     borderRadius: Radii.full,

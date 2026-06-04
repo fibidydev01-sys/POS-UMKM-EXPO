@@ -9,13 +9,12 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
-    "validate": "npm run typecheck && npm run lint"
+    "validate": "pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
     "@expo/metro-runtime": "~56.0.13",
     "@expo/ui": "~56.0.15",
     "@noble/hashes": "^1.8.0",
-    "@react-navigation/bottom-tabs": "^7.16.2",
     "@supabase/supabase-js": "^2.45.0",
     "expo": "~56.0.8",
     "expo-application": "~56.0.3",
@@ -24,6 +23,7 @@
     "expo-file-system": "~56.0.7",
     "expo-linking": "~56.0.13",
     "expo-local-authentication": "~56.0.4",
+    "expo-notifications": "~56.0.15",
     "expo-router": "~56.2.8",
     "expo-secure-store": "~56.0.4",
     "expo-sharing": "~56.0.15",

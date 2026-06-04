@@ -3,6 +3,10 @@
  *
  * @expo/ui (sheet native): SATU <BottomSheet>. Picker diskon = TUKAR-ISI.
  *
+ * PERBAIKAN SCROLL: ScrollView di dalam sheet diganti BottomSheetScrollView
+ * (re-export @expo/ui) agar gesture scroll bekerja di sheet native Android.
+ * Lihat catatan di components/ui/bottom-sheet.tsx & expo/expo#46379.
+ *
  * PERUBAHAN (QRIS local-first):
  *   - Prop `qrisReady`: bila false, metode QRIS dinonaktifkan + tampil catatan
  *     "atur di Pengaturan". Metode tunai/transfer/debit tidak terpengaruh.
@@ -12,8 +16,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
-import BottomSheet from '../ui/bottom-sheet';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import BottomSheet, { BottomSheetScrollView } from '../ui/bottom-sheet';
 import type { IconName } from '../ui/icon';
 import Icon from '../ui/icon';
 import PickerRow from '../ui/picker-row';
@@ -114,11 +118,12 @@ export default function KeranjangPanel(props: Props) {
       visible={visible}
       onClose={handleTutup}
       title={pickerOpen ? 'Pilih Diskon' : 'Keranjang'}
+      scrollable={false}
     >
       <View style={styles.container}>
         {pickerOpen ? (
           <View style={styles.flex}>
-            <ScrollView
+            <BottomSheetScrollView
               style={styles.flex}
               contentContainerStyle={styles.pickerListContent}
               showsVerticalScrollIndicator={false}
@@ -143,11 +148,11 @@ export default function KeranjangPanel(props: Props) {
                   Belum ada preset diskon. Tambahkan dulu di Pengaturan → Preset Diskon.
                 </Text>
               )}
-            </ScrollView>
+            </BottomSheetScrollView>
           </View>
         ) : (
           <View style={styles.flex}>
-            <ScrollView
+            <BottomSheetScrollView
               style={styles.flex}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
@@ -300,7 +305,7 @@ export default function KeranjangPanel(props: Props) {
               )}
 
               <View style={{ height: Spacing.lg }} />
-            </ScrollView>
+            </BottomSheetScrollView>
 
             <View style={styles.ringkasan}>
               <View style={styles.barisTotal}>

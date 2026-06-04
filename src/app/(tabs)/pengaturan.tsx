@@ -6,6 +6,10 @@
  *     presetFormMode=false → daftar preset (headerRight "Tambah")
  *     presetFormMode=true  → form preset (headerRight "Daftar")
  *
+ * PERBAIKAN SCROLL: daftar preset DI DALAM sheet memakai BottomSheetScrollView
+ * (re-export @expo/ui) agar bisa di-scroll di sheet native. ScrollView halaman
+ * (di luar sheet) TETAP ScrollView biasa. Lihat expo/expo#46379.
+ *
  * PERUBAHAN v3:
  *   - Pakai ScreenLayout (header konsisten).
  *   - Daftar preset diskon memakai PickerRow → seragam dengan kategori & picker.
@@ -16,6 +20,11 @@
  * PERUBAHAN (QRIS local-first):
  *   - Section "Pembayaran" → baris nav ke /pembayaran (setup PG). Gated features.qris.
  *   - Section "Keamanan" → toggle kunci aplikasi biometrik/PIN (Phase 4).
+ *
+ * PERUBAHAN (notifikasi stok):
+ *   - Section "Notifikasi Stok" (komponen NotifSettingsSection) disisipkan antara
+ *     Program Promo dan Data & Backup. Komponen mandiri: master toggle, jadwal
+ *     pagi/sore/mingguan + pemilih hari, simpan ke SQLite & reschedule otomatis.
  *
  * PERBAIKAN TYPECHECK:
  *   - router.push('/pembayaran') di-cast ke Href. Route ini valid (file
@@ -43,10 +52,11 @@ import { exportExcel, importExcel } from '../../lib/export/excel';
 import { features } from '../../lib/config/features';
 import { lockAktif, setLockAktif, cekBiometrik } from '../../lib/secure/app-lock';
 import ScreenLayout from '../../components/ui/screen-layout';
-import BottomSheet from '../../components/ui/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '../../components/ui/bottom-sheet';
 import type { IconName } from '../../components/ui/icon';
 import Icon from '../../components/ui/icon';
 import PickerRow from '../../components/ui/picker-row';
+import NotifSettingsSection from '../../components/pengaturan/notif-settings';
 
 export default function PengaturanScreen() {
   const router = useRouter();
@@ -296,6 +306,11 @@ export default function PengaturanScreen() {
             </>
           )}
 
+          {/* Notifikasi stok — komponen mandiri (master toggle + jadwal reminder) */}
+          <View style={styles.notifWrap}>
+            <NotifSettingsSection />
+          </View>
+
           {/* Backup */}
           <Text style={styles.sectionLabel}>Data & Backup</Text>
           <View style={styles.card}>
@@ -345,6 +360,7 @@ export default function PengaturanScreen() {
       <BottomSheet
         visible={presetVisible}
         onClose={tutupPreset}
+        scrollable={false}
         title={presetFormMode ? (editPreset ? 'Edit Preset' : 'Tambah Preset') : 'Preset Diskon'}
         headerRight={
           presetFormMode ? (
@@ -399,7 +415,7 @@ export default function PengaturanScreen() {
           </View>
         ) : (
           /* ── daftar preset (PickerRow seragam) ── */
-          <ScrollView
+          <BottomSheetScrollView
             style={styles.presetListScroll}
             contentContainerStyle={styles.presetListContent}
             showsVerticalScrollIndicator={false}
@@ -418,7 +434,7 @@ export default function PengaturanScreen() {
                 />
               ))
             )}
-          </ScrollView>
+          </BottomSheetScrollView>
         )}
       </BottomSheet>
     </ScreenLayout>
@@ -495,6 +511,9 @@ const styles = StyleSheet.create({
   },
   navTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.text },
   navSub: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+
+  // Pembungkus section notifikasi (komponen mandiri punya kartu sendiri).
+  notifWrap: { marginTop: Spacing.lg },
 
   btnOutline: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Radii.md,

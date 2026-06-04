@@ -6,6 +6,11 @@
  *     refundMode=false → tampilan detail (struk scrollable + aksi Void/Refund/Cetak)
  *     refundMode=true  → form alasan refund
  *
+ * PERBAIKAN SCROLL: struk di dalam sheet detail memakai BottomSheetScrollView
+ * (re-export @expo/ui) agar bisa di-scroll di dalam sheet native. FlatList
+ * daftar transaksi di layar utama TETAP FlatList biasa (bukan di dalam sheet).
+ * Lihat expo/expo#46379.
+ *
  * PERUBAHAN v3:
  *   - HEADER DUPLIKAT DI ATAS STRUK DIHAPUS. Sebelumnya ada baris waktu +
  *     grand total tepat di atas kertas struk — padahal struk SUDAH memuat
@@ -20,7 +25,7 @@
 import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable, Alert,
-  Platform, TextInput, ScrollView, useWindowDimensions,
+  Platform, TextInput, useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
@@ -35,7 +40,7 @@ import {
 import { formatRupiah } from '../../lib/utils/currency';
 import { formatTanggalJam } from '../../lib/utils/date';
 import ScreenLayout from '../../components/ui/screen-layout';
-import BottomSheet from '../../components/ui/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '../../components/ui/bottom-sheet';
 import Icon from '../../components/ui/icon';
 import EmptyState from '../../components/shared/empty-state';
 
@@ -227,6 +232,7 @@ export default function RiwayatScreen() {
       <BottomSheet
         visible={detailVisible}
         onClose={tutupDetail}
+        scrollable={false}
         title={refundMode ? 'Refund Transaksi' : detail?.nomor_order}
         headerRight={
           refundMode ? (
@@ -287,7 +293,7 @@ export default function RiwayatScreen() {
             )}
 
             {/* Struk — scrollable, dinamis font, kertas putih tanpa fixed width */}
-            <ScrollView
+            <BottomSheetScrollView
               style={styles.strukScroll}
               contentContainerStyle={styles.strukScrollContent}
               showsVerticalScrollIndicator={false}
@@ -306,7 +312,7 @@ export default function RiwayatScreen() {
                   {teksStruk}
                 </Text>
               </View>
-            </ScrollView>
+            </BottomSheetScrollView>
 
             {/* Tombol aksi — semua height: 52 */}
             <View style={styles.aksiRow}>

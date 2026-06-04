@@ -1,11 +1,30 @@
 /**
  * transaksi.ts — simpan transaksi, riwayat, void/refund, dan agregat dashboard.
+ *
+ * PERUBAHAN (manajemen stok v3):
+ *   - Setelah transaksi cash tersimpan, stok produk dikurangi (decrementStock)
+ *     dan dicek untuk notifikasi stok menipis/habis (checkAndNotifyLowStock).
+ *   - Hanya item 'normal' & 'promo_free' dengan menu_item_id yang mengurangi
+ *     stok (item gratis BOGO tetap mengurangi stok fisik karena barang keluar).
+ *   - Mutasi stok dilakukan SETELAH commit transaksi penjualan, di luar
+ *     withTransactionAsync utama, agar kegagalan stok tidak merollback penjualan
+ *     (stok di-clamp & dicatat sendiri di stock_log).
+ *
+ * PERUBAHAN (bahan + resep v4 — HYBRID):
+ *   - prosesStokKeluar kini BERCABANG per menu berdasarkan track_mode:
+ *       'product' → decrementStock(menuId, qty)        (perilaku v3, tak berubah)
+ *       'recipe'  → konsumsiBahanUntukMenu(menuId, qty) (kurangi bahan via resep)
+ *   - Karena prosesStokKeluar dipakai jalur cash (di sini) DAN jalur QRIS
+ *     (transaksi-qris.ts), satu perubahan ini otomatis berlaku untuk keduanya.
  */
-import type { CartItem, PaymentMethod, Transaksi, TransactionItem} from './database';
+import type { CartItem, PaymentMethod, Transaksi, TransactionItem, TrackMode } from './database';
 import {
   getDb
 } from './database';
 import { hitungGrandTotal } from '../cart/promo-engine';
+import { decrementStock } from './stock';
+import { konsumsiBahanUntukMenu } from './resep';
+import { checkAndNotifyLowStock } from '../notification/stock-notif';
 
 export interface SimpanTransaksiInput {
   items: CartItem[];
@@ -60,6 +79,56 @@ async function buatNomorOrder(): Promise<string> {
   return `ORD-${tgl}-${urut}`;
 }
 
+/**
+ * Kurangi stok untuk semua item ber-menu_item_id dalam keranjang, lalu cek
+ * notifikasi. Dipanggil setelah transaksi tersimpan. Tidak melempar.
+ *
+ * HYBRID: tiap menu dirutekan sesuai track_mode-nya.
+ *   - 'product' → decrementStock (clamp 0) + checkAndNotifyLowStock (level menu)
+ *   - 'recipe'  → konsumsiBahanUntukMenu (kurangi bahan, boleh minus, cek bahan)
+ */
+export async function prosesStokKeluar(items: CartItem[], nomorOrder: string): Promise<void> {
+  const db = getDb();
+
+  // Agregasi qty per menu_item_id (gabung baris normal + promo_free menu sama).
+  const agg = new Map<number, number>();
+  for (const it of items) {
+    if (it.menu_item_id == null) continue;
+    agg.set(it.menu_item_id, (agg.get(it.menu_item_id) ?? 0) + it.qty);
+  }
+  if (agg.size === 0) return;
+
+  // Ambil track_mode tiap menu sekali (hindari query berulang di loop).
+  const ids = Array.from(agg.keys());
+  const placeholders = ids.map(() => '?').join(',');
+  let modeRows: { id: number; track_mode: TrackMode }[] = [];
+  try {
+    modeRows = await db.getAllAsync<{ id: number; track_mode: TrackMode }>(
+      `SELECT id, track_mode FROM menu_item WHERE id IN (${placeholders})`,
+      ids
+    );
+  } catch {
+    // Bila gagal baca mode, fallback: perlakukan semua sebagai 'product'.
+    modeRows = ids.map((id) => ({ id, track_mode: 'product' as TrackMode }));
+  }
+  const modeMap = new Map<number, TrackMode>();
+  modeRows.forEach((r) => modeMap.set(r.id, r.track_mode === 'recipe' ? 'recipe' : 'product'));
+
+  for (const [menuId, qty] of agg) {
+    const mode = modeMap.get(menuId) ?? 'product';
+    try {
+      if (mode === 'recipe') {
+        await konsumsiBahanUntukMenu(menuId, qty, nomorOrder);
+      } else {
+        await decrementStock(menuId, qty, `Penjualan ${nomorOrder}`);
+        await checkAndNotifyLowStock(menuId);
+      }
+    } catch {
+      // jangan ganggu alur utama
+    }
+  }
+}
+
 export async function simpanTransaksi(input: SimpanTransaksiInput): Promise<SimpanTransaksiHasil> {
   const db = getDb();
   const { subtotal, diskonNominal, grandTotal } = hitungGrandTotal(input.items, input.diskonPersen);
@@ -94,6 +163,9 @@ export async function simpanTransaksi(input: SimpanTransaksiInput): Promise<Simp
       );
     }
   });
+
+  // Stok keluar + notifikasi DI LUAR transaksi penjualan (tidak merollback penjualan).
+  await prosesStokKeluar(input.items, nomorOrder);
 
   return { transaksiId, nomorOrder };
 }

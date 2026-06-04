@@ -8,12 +8,18 @@
  *   - Hanya menulis bila session.transaksi_id masih null.
  *   - Seluruh proses (insert transaksi + items + tautkan ke session) dalam SATU
  *     transaksi SQLite.
+ *
+ * PERUBAHAN (manajemen stok v3):
+ *   - Setelah settle (transaksi BARU ditulis), stok dikurangi + cek notif.
+ *   - Idempoten: bila transaksi sudah ada sebelumnya (sudahAda=true), stok TIDAK
+ *     dikurangi lagi (mencegah double-decrement saat rekonsiliasi paralel).
  */
 import { getDb } from './database';
 import type { CartItem } from './database';
 import { hitungGrandTotal } from '../cart/promo-engine';
 import type { PaymentSession } from './payment-session';
 import { parseCartSnapshot } from './payment-session';
+import { prosesStokKeluar } from './transaksi';
 
 /** Nomor order harian ORD-YYYYMMDD-NNN (sinkron dgn versi cash). */
 async function buatNomorOrder(): Promise<string> {
@@ -61,6 +67,7 @@ export async function settleSessionPaid(session: PaymentSession): Promise<Settle
   const nomorOrder = await buatNomorOrder();
 
   let transaksiId = 0;
+  let baruDitulis = false;
 
   await db.withTransactionAsync(async () => {
     // Re-cek di dalam transaksi (hindari race dgn rekonsiliasi paralel).
@@ -85,6 +92,7 @@ export async function settleSessionPaid(session: PaymentSession): Promise<Settle
       ]
     );
     transaksiId = res.lastInsertRowId as number;
+    baruDitulis = true;
 
     for (const it of cart) {
       const tipe = it.item_type === 'promo_free' ? 'promo_free' : 'normal';
@@ -104,5 +112,10 @@ export async function settleSessionPaid(session: PaymentSession): Promise<Settle
     );
   });
 
-  return { transaksiId, nomorOrder, sudahAda: false };
+  // Stok keluar HANYA bila transaksi benar-benar baru ditulis di pemanggilan ini.
+  if (baruDitulis) {
+    await prosesStokKeluar(cart, nomorOrder);
+  }
+
+  return { transaksiId, nomorOrder, sudahAda: !baruDitulis };
 }
