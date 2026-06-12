@@ -1,7 +1,7 @@
 /**
  * struk.ts — render teks struk (monospace) + cetak ke printer thermal Bluetooth.
  *
- * Cetak memakai react-native-bluetooth-escpos-printer JIKA tersedia (hanya di
+ * Cetak memakai react-native-thermal-printer JIKA tersedia (hanya di
  * build Android dengan modul native). Di Expo Go / iOS / web, printerTersedia()
  * mengembalikan false dan UI menampilkan pesan ramah — tanpa crash.
  *
@@ -12,6 +12,23 @@
  *   - Tidak ada lagi pemanggilan kiriKanan(..,'',..) yang menghasilkan baris
  *     setengah-jadi / trailing space aneh.
  *   - Field config memakai nama yang benar: nama_umkm, no_telp, paper_width.
+ *
+ * PERUBAHAN PRINTER:
+ *   - Ganti react-native-bluetooth-escpos-printer → react-native-thermal-printer.
+ *   - API baru: getBluetoothDeviceList + printBluetooth (tidak perlu connect eksplisit).
+ *   - Signature getPairedDevices / connectPrinter / cetakStruk TIDAK BERUBAH
+ *     sehingga pemanggil lama tetap kompatibel.
+ *
+ * PERUBAHAN (FINISHING / UX AUDIT A2):
+ *   - cetakStrukKePrinter(): satu fungsi tunggal untuk seluruh flow cetak —
+ *     ambil device list SEKALI, cetak ke device pertama, dan KEMBALIKAN NAMA
+ *     PRINTER agar UI bisa menampilkannya ("Struk terkirim ke RPP02N").
+ *     Menggantikan ritual getPairedDevices→connectPrinter→cetakStruk yang
+ *     dulu diduplikasi di kasir.tsx & use-riwayat.ts (dan getBluetoothDeviceList
+ *     dipanggil dua kali per cetak).
+ *   - Pesan error "printer tidak ditemukan" kini menyebut kemungkinan
+ *     BLUETOOTH MATI — sebelumnya menyesatkan (user BT off dibilang
+ *     "printer tidak ditemukan" tanpa petunjuk).
  */
 import { Platform } from 'react-native';
 import type { UmkmConfig, Transaksi, TransactionItem } from '../db/database';
@@ -130,26 +147,19 @@ export function renderStrukText(config: UmkmConfig, trx: Transaksi, items: Trans
 
 // ───────────────────────── Printer (opsional/native) ─────────────────────────
 
-type EscPosModule = {
-  BluetoothManager: {
-    isBluetoothEnabled: () => Promise<boolean>;
-    enableBluetooth: () => Promise<string[]>;
-    connect: (address: string) => Promise<void>;
-  };
-  BluetoothEscposPrinter: {
-    printText: (text: string, opts?: Record<string, unknown>) => Promise<void>;
-    printAndFeed?: (lines: number) => Promise<void>;
-  };
+type ThermalModule = {
+  printBluetooth: (args: { payload: string; macAddress?: string }) => Promise<void>;
+  getBluetoothDeviceList: () => Promise<{ deviceName: string; macAddress: string }[]>;
 };
 
-let _mod: EscPosModule | null | undefined;
+let _mod: ThermalModule | null | undefined;
 
-function loadModule(): EscPosModule | null {
+function loadModule(): ThermalModule | null {
   if (_mod !== undefined) return _mod;
   try {
     // require dinamis: jika modul native tidak ada, masuk catch.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    _mod = require('react-native-bluetooth-escpos-printer') as EscPosModule;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    _mod = require('react-native-thermal-printer') as ThermalModule;
   } catch {
     _mod = null;
   }
@@ -166,48 +176,82 @@ export async function getPairedDevices(): Promise<{ name: string; address: strin
   const mod = loadModule();
   if (!mod) return [];
   try {
-    const enabled = await mod.BluetoothManager.isBluetoothEnabled();
-    if (!enabled) await mod.BluetoothManager.enableBluetooth();
-    const paired = await mod.BluetoothManager.enableBluetooth();
-    const list: { name: string; address: string }[] = [];
-    (paired ?? []).forEach((s) => {
-      try {
-        const o = JSON.parse(s);
-        if (o?.address) list.push({ name: o.name ?? 'Printer', address: o.address });
-      } catch { /* abaikan entri tak valid */ }
-    });
-    return list;
+    const list = await mod.getBluetoothDeviceList();
+    return list.map((d) => ({ name: d.deviceName, address: d.macAddress }));
   } catch {
     return [];
   }
 }
 
-export async function connectPrinter(address: string): Promise<boolean> {
+/**
+ * react-native-thermal-printer tidak butuh connect eksplisit —
+ * address dikirim langsung saat printBluetooth. Fungsi ini tetap ada
+ * agar pemanggil lama tidak perlu diubah.
+ */
+export async function connectPrinter(_address: string): Promise<boolean> {
+  return loadModule() != null;
+}
+
+/** Pesan error standar — disebut di dua tempat, jangan sampai beda redaksi. */
+const PESAN_TIDAK_TERSEDIA =
+  'Cetak struk hanya tersedia di build Android dengan printer Bluetooth.';
+const PESAN_TIDAK_DITEMUKAN =
+  'Printer tidak ditemukan. Pastikan Bluetooth HP MENYALA dan printer thermal sudah di-pair di Pengaturan Bluetooth.';
+const PESAN_GAGAL =
+  'Gagal mencetak. Pastikan Bluetooth menyala, printer hidup & dalam jangkauan, lalu coba lagi.';
+
+export interface HasilCetak {
+  ok: boolean;
+  pesan: string;
+  /** Nama printer tujuan — tampilkan ke user agar tahu printer mana yang dipakai. */
+  printerName?: string;
+}
+
+/**
+ * SATU PINTU flow cetak: cek modul → ambil device list SEKALI → cetak ke
+ * device pertama → kembalikan nama printer. Pemanggil tinggal:
+ *
+ *   if (!printerTersedia()) { Alert ... ; return; }
+ *   const res = await cetakStrukKePrinter(config, trx, items);
+ *   res.ok ? toast.success(res.pesan) : Alert.alert('Gagal cetak', res.pesan);
+ */
+export async function cetakStrukKePrinter(
+  config: UmkmConfig,
+  trx: Transaksi,
+  items: TransactionItem[]
+): Promise<HasilCetak> {
   const mod = loadModule();
-  if (!mod) return false;
+  if (!mod) return { ok: false, pesan: PESAN_TIDAK_TERSEDIA };
   try {
-    await mod.BluetoothManager.connect(address);
-    return true;
+    const devices = await mod.getBluetoothDeviceList();
+    if (devices.length === 0) {
+      return { ok: false, pesan: PESAN_TIDAK_DITEMUKAN };
+    }
+    const tujuan = devices[0];
+    const teks = renderStrukText(config, trx, items);
+    await mod.printBluetooth({
+      payload: teks + '\n\n\n',
+      macAddress: tujuan.macAddress,
+    });
+    return {
+      ok: true,
+      pesan: `Struk terkirim ke ${tujuan.deviceName || 'printer'}.`,
+      printerName: tujuan.deviceName,
+    };
   } catch {
-    return false;
+    return { ok: false, pesan: PESAN_GAGAL };
   }
 }
 
+/**
+ * @deprecated Pakai cetakStrukKePrinter() — sudah termasuk pencarian device
+ * dan mengembalikan nama printer. Fungsi ini dipertahankan untuk kompatibilitas.
+ */
 export async function cetakStruk(
   config: UmkmConfig,
   trx: Transaksi,
   items: TransactionItem[]
 ): Promise<{ ok: boolean; pesan: string }> {
-  const mod = loadModule();
-  if (!mod) return { ok: false, pesan: 'Printer hanya tersedia di build Android dengan printer Bluetooth.' };
-  try {
-    const teks = renderStrukText(config, trx, items);
-    await mod.BluetoothEscposPrinter.printText(teks + '\n', {});
-    if (mod.BluetoothEscposPrinter.printAndFeed) {
-      await mod.BluetoothEscposPrinter.printAndFeed(3);
-    }
-    return { ok: true, pesan: 'Struk tercetak.' };
-  } catch (e) {
-    return { ok: false, pesan: 'Gagal mencetak. Periksa koneksi printer dan coba lagi.' };
-  }
+  const res = await cetakStrukKePrinter(config, trx, items);
+  return { ok: res.ok, pesan: res.pesan };
 }

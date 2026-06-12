@@ -1,43 +1,21 @@
 /**
  * database.ts — koneksi SQLite (expo-sqlite) + seluruh tipe domain.
  *
- * Offline-first: semua data lokal. Server developer HANYA untuk aktivasi.
- *
- * PERUBAHAN (QRIS local-first):
- *   - initDatabase() kini memakai MIGRATION RUNNER berurut (lihat migrations.ts),
- *     bukan satu blok execAsync. Tabel pg_credentials & payment_session ikut.
- *   - Transaksi punya kolom qris_provider / qris_external_id (referensi PG).
- *   - UmkmConfig punya `tier` (v1/v2/v3) dari hasil aktivasi.
- *
- * PERUBAHAN (manajemen stok, migration v3):
- *   - MenuItem punya kolom stok & min_stock. SEMUA produk dilacak stoknya.
- *   - Tipe StockLog untuk riwayat mutasi stok.
- *
- * PERUBAHAN (bahan + resep, migration v4 — HYBRID):
- *   - MenuItem punya kolom track_mode: 'product' | 'recipe'.
- *   - Tipe Bahan, Resep (BOM line), BahanLog.
- *
- * SUMBER KEBENARAN NAMA FIELD CONFIG:
- *   nama_umkm, alamat, no_telp, footer_struk, paper_width, tier
+ * Offline-first: semua data lokal. Server hanya untuk aktivasi.
+ 
+ * PaymentMethod: 'tunai' | 'transfer' | 'debit'.
  */
 
 import * as SQLite from 'expo-sqlite';
-import { runMigrations } from './migrations';
+import { initSchema } from './schema';
 
 // ───────────────────────── Tipe Domain ─────────────────────────
 
-export type PaymentMethod = 'tunai' | 'qris' | 'transfer' | 'debit';
-export type TipePromo = 'bogo' | 'buy2get1';
+export type PaymentMethod   = 'tunai' | 'transfer' | 'debit';
+export type TipePromo       = 'bogo' | 'buy2get1';
 export type StatusTransaksi = 'completed' | 'void' | 'refund';
-export type CartItemType = 'normal' | 'promo_free';
-export type Tier = 'v1' | 'v2' | 'v3';
-export type StockLogType = 'in' | 'out' | 'opname';
-
-/** Mode pelacakan stok sebuah menu (HYBRID, migration v4). */
-export type TrackMode = 'product' | 'recipe';
-
-/** Jenis mutasi bahan (mirror StockLogType, untuk bahan). */
-export type BahanLogType = 'in' | 'out' | 'opname';
+export type CartItemType    = 'normal' | 'promo_free';
+export type StockLogType    = 'in' | 'out' | 'opname';
 
 export interface Kategori {
   id: number;
@@ -52,49 +30,14 @@ export interface MenuItem {
   kategori_id: number | null;
   is_available: number; // 0 | 1
   created_at: string;
-  // Manajemen stok (migration v3). SEMUA produk dilacak (mode 'product').
   stok: number;
   min_stock: number;
-  // Mode pelacakan (migration v4). 'product' (kolom stok di atas) | 'recipe' (dari bahan).
-  track_mode: TrackMode;
 }
 
 export interface StockLog {
   id: number;
   menu_item_id: number;
   type: StockLogType;
-  qty: number;            // + masuk, - keluar (opname = selisih)
-  stok_sebelum: number;
-  stok_sesudah: number;
-  note: string | null;
-  created_at: string;
-}
-
-/** Bahan baku (ingredient). stok REAL & BOLEH MINUS. */
-export interface Bahan {
-  id: number;
-  nama: string;
-  satuan: string;     // 'g' | 'kg' | 'ml' | 'l' | 'pcs' | 'bungkus' | ...
-  stok: number;       // REAL, boleh minus
-  min_stock: number;  // REAL
-  harga_beli: number; // untuk nilai stok bahan
-  is_deleted: number; // 0 | 1
-  created_at: string;
-}
-
-/** Baris resep / BOM: pemakaian 1 bahan untuk 1 porsi sebuah menu. */
-export interface Resep {
-  id: number;
-  menu_item_id: number;
-  bahan_id: number;
-  qty: number;        // jumlah bahan per 1 porsi menu (REAL)
-}
-
-/** Audit mutasi bahan (qty REAL, boleh minus). */
-export interface BahanLog {
-  id: number;
-  bahan_id: number;
-  type: BahanLogType;
   qty: number;
   stok_sebelum: number;
   stok_sesudah: number;
@@ -143,9 +86,6 @@ export interface Transaksi {
   status: StatusTransaksi;
   void_reason: string | null;
   created_at: string;
-  // Referensi QRIS (null untuk transaksi cash).
-  qris_provider?: string | null;
-  qris_external_id?: string | null;
 }
 
 export interface TransactionItem {
@@ -166,10 +106,10 @@ export interface UmkmConfig {
   footer_struk: string;
   paper_width: number;       // 58 | 80
   app_version: string;
-  tier: Tier;
   umkm_id: string | null;
   activated: boolean;
   activation_code: string | null;
+
 }
 
 // ───────────────────────── Koneksi ─────────────────────────
@@ -185,32 +125,21 @@ export function getDb(): SQLite.SQLiteDatabase {
 
 let _initialized = false;
 
-/**
- * Inisialisasi: PRAGMA + migrasi berurut + seed default. Idempotent.
- */
 export async function initDatabase(): Promise<void> {
   if (_initialized) return;
   const db = getDb();
 
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
-  `);
+  await initSchema(db);
 
-  // Migrasi berurut menggantikan blok CREATE TABLE manual.
-  await runMigrations(db);
-
-  // Seed pengaturan default (key = sumber kebenaran).
   const defaults: Record<string, string> = {
-    nama_umkm: 'Warung Saya',
-    alamat: '',
-    no_telp: '',
-    footer_struk: 'Terima kasih atas kunjungan Anda',
-    paper_width: '58',
-    app_version: 'v1.0',
-    tier: 'v1',
-    umkm_id: '',
-    activated: '0',
+    nama_umkm:       'Warung Saya',
+    alamat:          '',
+    no_telp:         '',
+    footer_struk:    'Terima kasih atas kunjungan Anda',
+    paper_width:     '58',
+    app_version:     'v1.0',
+    umkm_id:         '',
+    activated:       '0',
     activation_code: '',
   };
   for (const [key, value] of Object.entries(defaults)) {
@@ -221,11 +150,16 @@ export async function initDatabase(): Promise<void> {
     );
   }
 
-  // Seed preset diskon contoh (hanya jika kosong).
-  const cnt = await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) as n FROM diskon_preset`);
+  const cnt = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) as n FROM diskon_preset`
+  );
   if ((cnt?.n ?? 0) === 0) {
-    await db.runAsync(`INSERT INTO diskon_preset (nama, persen, is_active) VALUES ('Diskon 10%', 10, 1)`);
-    await db.runAsync(`INSERT INTO diskon_preset (nama, persen, is_active) VALUES ('Diskon 20%', 20, 1)`);
+    await db.runAsync(
+      `INSERT INTO diskon_preset (nama, persen, is_active) VALUES ('Diskon 10%', 10, 1)`
+    );
+    await db.runAsync(
+      `INSERT INTO diskon_preset (nama, persen, is_active) VALUES ('Diskon 20%', 20, 1)`
+    );
   }
 
   _initialized = true;

@@ -32,7 +32,7 @@ export async function setupChannels(): Promise<void> {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: BRAND_COLOR,
       lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
-      sound: 'default',
+      sound: 'custom_sound.wav',  // ← custom sound
     });
 
     await N.setNotificationChannelAsync(CHANNEL_INFO, {
@@ -40,6 +40,7 @@ export async function setupChannels(): Promise<void> {
       importance: N.AndroidImportance.DEFAULT,
       lightColor: BRAND_COLOR,
       lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
+      // sound: tidak diset → default
     });
   } catch {
     // Abaikan: channel gagal dibuat tidak boleh mengganggu inisialisasi app.

@@ -41,7 +41,7 @@
  *     Set `scrollable={false}` bila konten mengelola scroll-nya sendiri
  *     (mis. memakai BottomSheetFlatList langsung sebagai children).
  *
- * PERUBAHAN v3:
+ * PERUBAHAN v2:
  *   - TOMBOL SILANG (✕) DIHAPUS dari semua drawer. showClose default = false.
  *     Tutup drawer cukup lewat gesture pan-down / back button (perilaku native).
  *   - BACKGROUND TRANSPARAN: root & body tidak memakai Colors.bg agar isi

@@ -1,20 +1,20 @@
 /**
  * Akses data menu & kategori.
  *
- * PERUBAHAN (manajemen stok v3):
+ * PERUBAHAN (manajemen stok v2):
  *   - SELECT menyertakan kolom stok & min_stock.
  *   - MenuItemInput menerima stok awal & min_stock.
  *   - Saat tambah produk, stok awal dicatat ke stock_log (type 'in') bila > 0.
  *   - Mutasi stok (in/out/opname) ada di lib/db/stock.ts agar terpusat.
  *
- * PERUBAHAN (bahan + resep v4 — HYBRID):
- *   - SELECT & INSERT/UPDATE menyertakan track_mode ('product' | 'recipe').
- *   - MenuItemInput menerima track_mode (default 'product' bila tak diisi).
- *   - Catatan: log stok awal / opname hanya relevan untuk mode 'product'.
- *     Untuk mode 'recipe', kolom stok menu diabaikan (stok dihitung dari bahan),
- *     tetapi nilainya tetap ditulis apa adanya agar tidak ada perilaku tersembunyi.
+ * Lapis 3 DIHAPUS:
+ *   - Import TrackMode dihapus
+ *   - track_mode dihapus dari MenuItemInput
+ *   - track_mode dihapus dari MENU_COLS, INSERT, UPDATE query
+ *   - normalMode() helper dihapus
+ *   - Log stok awal selalu dijalankan (tidak ada kondisi mode === 'product')
  */
-import type { Kategori, MenuItem, TrackMode } from './database';
+import type { Kategori, MenuItem } from './database';
 import { getDb } from './database';
 
 export interface MenuItemInput {
@@ -24,8 +24,6 @@ export interface MenuItemInput {
   is_available: number;
   stok: number;
   min_stock: number;
-  /** Mode pelacakan stok. Opsional; default 'product'. */
-  track_mode?: TrackMode;
 }
 
 // ── Kategori ──
@@ -51,11 +49,7 @@ export async function hapusKategori(id: number): Promise<void> {
 }
 
 // ── Menu item ──
-const MENU_COLS = `id, nama, harga, kategori_id, is_available, created_at, stok, min_stock, track_mode`;
-
-function normalMode(m?: TrackMode): TrackMode {
-  return m === 'recipe' ? 'recipe' : 'product';
-}
+const MENU_COLS = `id, nama, harga, kategori_id, is_available, created_at, stok, min_stock`;
 
 export async function getMenuItems(): Promise<MenuItem[]> {
   const db = getDb();
@@ -91,18 +85,16 @@ export async function getMenuById(id: number): Promise<MenuItem | null> {
  */
 export async function tambahMenuItem(input: MenuItemInput): Promise<number> {
   const db = getDb();
-  const mode = normalMode(input.track_mode);
   let newId = 0;
   await db.withTransactionAsync(async () => {
     const res = await db.runAsync(
-      `INSERT INTO menu_item (nama, harga, kategori_id, is_available, stok, min_stock, track_mode)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [input.nama, input.harga, input.kategori_id, input.is_available, input.stok, input.min_stock, mode]
+      `INSERT INTO menu_item (nama, harga, kategori_id, is_available, stok, min_stock)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.nama, input.harga, input.kategori_id, input.is_available, input.stok, input.min_stock]
     );
     newId = res.lastInsertRowId as number;
 
-    // Log stok awal hanya bermakna untuk mode 'product'.
-    if (mode === 'product' && input.stok > 0) {
+    if (input.stok > 0) {
       await db.runAsync(
         `INSERT INTO stock_log (menu_item_id, type, qty, stok_sebelum, stok_sesudah, note)
          VALUES (?, 'in', ?, 0, ?, 'Stok awal produk')`,
@@ -114,12 +106,11 @@ export async function tambahMenuItem(input: MenuItemInput): Promise<number> {
 }
 
 /**
- * Update produk. Bila stok diubah lewat form edit (mode 'product'), selisihnya
+ * Update produk. Bila stok diubah lewat form edit, selisihnya
  * dicatat sebagai 'opname' (penyesuaian manual) agar audit tetap utuh.
  */
 export async function updateMenuItem(id: number, input: MenuItemInput): Promise<void> {
   const db = getDb();
-  const mode = normalMode(input.track_mode);
   await db.withTransactionAsync(async () => {
     const lama = await db.getFirstAsync<{ stok: number }>(
       `SELECT stok FROM menu_item WHERE id = ?`,
@@ -128,12 +119,12 @@ export async function updateMenuItem(id: number, input: MenuItemInput): Promise<
     const stokLama = lama?.stok ?? 0;
 
     await db.runAsync(
-      `UPDATE menu_item SET nama = ?, harga = ?, kategori_id = ?, is_available = ?, stok = ?, min_stock = ?, track_mode = ?
+      `UPDATE menu_item SET nama = ?, harga = ?, kategori_id = ?, is_available = ?, stok = ?, min_stock = ?
        WHERE id = ?`,
-      [input.nama, input.harga, input.kategori_id, input.is_available, input.stok, input.min_stock, mode, id]
+      [input.nama, input.harga, input.kategori_id, input.is_available, input.stok, input.min_stock, id]
     );
 
-    if (mode === 'product' && input.stok !== stokLama) {
+    if (input.stok !== stokLama) {
       const selisih = input.stok - stokLama;
       await db.runAsync(
         `INSERT INTO stock_log (menu_item_id, type, qty, stok_sebelum, stok_sesudah, note)

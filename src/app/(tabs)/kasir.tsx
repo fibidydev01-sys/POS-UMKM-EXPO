@@ -1,254 +1,119 @@
-import { useState, useCallback, useMemo } from 'react';
+/**
+ * (tabs)/kasir.tsx — Tab Kasir: pilih produk.
+ *
+ * REFACTOR: useKasir hook lokal diganti useKasirStore (Zustand).
+ * State cart tetap hidup saat navigate ke halaman keranjang dan kembali.
+ *
+ * Cart bar floating → router.push('/kasir/keranjang') (bukan drawer lagi).
+ * StrukPreview tetap modal di sini, dipicu dari store.strukVisible.
+ *
+ * PERUBAHAN (FINISHING):
+ *   - cetak() memakai cetakStrukKePrinter() — SATU pemanggilan (tidak lagi
+ *     getPairedDevices + connectPrinter + cetakStruk yang ambil device list 2x).
+ *     Pesan error kini menyebut Bluetooth secara eksplisit (tidak menyesatkan
+ *     saat BT mati), dan nama printer dikembalikan untuk feedback.
+ *   - Cetak BERHASIL → toast.success dengan nama printer ("Struk terkirim ke
+ *     TM-m10."). Sebelumnya sukses tidak ada feedback sama sekali.
+ *   - MenuList menerima showStok={features.inventory} → badge HABIS / SISA N
+ *     pada produk yang stoknya kritis (Audit B2).
+ *
+ * PERUBAHAN (RESTRUKTUR):
+ *   - Cart bar kini SELALU tampil (tidak conditional), sama seperti FAB di menu.
+ *   - TAB_BAR_BASE + tabBarHeight dihapus, diganti struktur sama persis menu.
+ *   - cartBarBottom = insets.bottom (1:1 dengan FAB_BOTTOM di menu).
+ *   - LIST_BOTTOM_PADDING memperhitungkan FAB + tab bar agar tidak tertutup.
+ */
+import { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-// SDK 56: expo-router tidak lagi izinkan import dari @react-navigation/* di kode app.
-// Hook ini sekarang di-re-export dari 'expo-router/js-tabs' (runtime API sama persis).
-import { useBottomTabBarHeight } from 'expo-router/js-tabs';
-
+import { useRouter, useFocusEffect, type Href } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import { formatRupiah } from '../../lib/utils/currency';
-import type {
-  MenuItem, CartItem, UmkmConfig, Transaksi, TransactionItem, DiskonPreset,
-  PromoRule, PaymentMethod, Kategori,
-} from '../../lib/db/database';
-import { getMenuTersedia, getKategori } from '../../lib/db/menu';
-import { getDiskonPreset } from '../../lib/db/diskon-preset';
-import { simpanTransaksi, getItemsByTransaksi, getTransaksiById } from '../../lib/db/transaksi';
-import { getConfig } from '../../lib/db/pengaturan';
-import { getPromoAktif } from '../../lib/db/promo-rule';
-import { applyPromo, hitungGrandTotal } from '../../lib/cart/promo-engine';
+import { cetakStrukKePrinter, printerTersedia } from '../../lib/printer/struk';
 import { features } from '../../lib/config/features';
-import { cetakStruk, connectPrinter, getPairedDevices, printerTersedia } from '../../lib/printer/struk';
-import { usePaymentSession } from '../../lib/payment/use-payment-session';
-import { cekPgReady } from '../../lib/payment/pg-ready';
+import { useKasirStore } from '../../store/kasir-store';
+import { useState } from 'react';
 
 import ScreenLayout from '../../components/ui/screen-layout';
 import MenuList from '../../components/kasir/menu-list';
-import KeranjangPanel from '../../components/kasir/keranjang-panel';
 import StrukPreview from '../../components/kasir/struk-preview';
-import DialogQris from '../../components/kasir/dialog-qris';
 import KategoriList from '../../components/menu/kategori-list';
-import EmptyState from '../../components/shared/empty-state';
+import EmptyState from '../../components/ui/empty-state';
+import Icon from '../../components/ui/icon';
+import { useToast } from '../../components/ui/toast';
 
 export default function KasirScreen() {
-  const tabBarHeight = useBottomTabBarHeight();
-
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [kategori, setKategori] = useState<Kategori[]>([]);
-  const [presets, setPresets] = useState<DiskonPreset[]>([]);
-  const [promoRules, setPromoRules] = useState<PromoRule[]>([]);
-  const [kategoriAktif, setKategoriAktif] = useState<number | null>(null);
-  const [config, setConfig] = useState<UmkmConfig | null>(null);
-  const [pgReady, setPgReady] = useState(false);
-
-  const [cartRaw, setCartRaw] = useState<CartItem[]>([]);
-
-  const [diskonPresetId, setDiskonPresetId] = useState<number | null>(null);
-  const [diskonPersen, setDiskonPersen] = useState(0);
-
-  const [keranjangBuka, setKeranjangBuka] = useState(false);
-
-  const [trxSelesai, setTrxSelesai] = useState<Transaksi | null>(null);
-  const [itemsSelesai, setItemsSelesai] = useState<TransactionItem[]>([]);
-  const [strukBuka, setStrukBuka] = useState(false);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [mencetak, setMencetak] = useState(false);
 
-  // QRIS
-  const [qrisBuka, setQrisBuka] = useState(false);
-  const pay = usePaymentSession();
+  // Clearance bawah list: tab bar + safe area + floating bar + gap
+  const TAB_BAR = 60;
+  const FAB_SIZE = 60;
+  const LIST_BOTTOM_PADDING = TAB_BAR + insets.bottom + FAB_SIZE + Spacing.lg;
 
-  const muat = useCallback(async () => {
-    const [m, k, c, p, promo, ready] = await Promise.all([
-      getMenuTersedia(),
-      getKategori(),
-      getConfig(),
-      getDiskonPreset(),
-      features.promoEngine ? getPromoAktif() : Promise.resolve([] as PromoRule[]),
-      features.qris ? cekPgReady() : Promise.resolve({ ready: false, alasan: '' }),
-    ]);
-    setMenu(m);
-    setKategori(k);
-    setConfig(c);
-    setPresets(p);
-    setPromoRules(promo);
-    setPgReady(ready.ready);
-  }, []);
+  // Floating bar bottom: di atas tab bar + safe area
+  const FAB_BOTTOM = insets.bottom;
 
-  useFocusEffect(useCallback(() => { void muat(); }, [muat]));
+  // Zustand store
+  const {
+    menu,
+    kategori,
+    kategoriAktif,
+    config,
+    menuTampil,
+    qtyMap,
+    grandTotal,
+    totalQty,
+    trxSelesai,
+    itemsSelesai,
+    strukVisible,
+    muat,
+    tambah,
+    kurang,
+    setKategoriAktif,
+    tutupStruk,
+  } = useKasirStore();
 
-  const cart = useMemo(
-    () => (features.promoEngine ? applyPromo(cartRaw, promoRules) : cartRaw),
-    [cartRaw, promoRules]
+  // Reload menu setiap kali tab dapat fokus
+  useFocusEffect(
+    useCallback(() => {
+      void muat();
+    }, [muat]),
   );
 
-  const menuTampil = useMemo(
-    () => (kategoriAktif === null ? menu : menu.filter((m) => m.kategori_id === kategoriAktif)),
-    [menu, kategoriAktif]
-  );
-
-  const qtyMap = useMemo(() => {
-    const map: Record<number, number> = {};
-    cartRaw.forEach((c) => { if (c.menu_item_id != null) map[c.menu_item_id] = c.qty; });
-    return map;
-  }, [cartRaw]);
-
-  const grandTotal = useMemo(
-    () => hitungGrandTotal(cart, diskonPersen).grandTotal,
-    [cart, diskonPersen]
-  );
-  const totalQty = useMemo(() => cartRaw.reduce((s, c) => s + c.qty, 0), [cartRaw]);
-
-  // ── Aksi keranjang ──
-  const tambah = (item: MenuItem) => {
-    setCartRaw((prev) => {
-      const idx = prev.findIndex((c) => c.menu_item_id === item.id);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
-        return copy;
-      }
-      return [...prev, {
-        menu_item_id: item.id,
-        nama_produk: item.nama,
-        harga_satuan: item.harga,
-        qty: 1,
-        diskon_preset_id: null,
-        diskon_persen: 0,
-      }];
-    });
-  };
-
-  const ubahQty = (menuItemId: number | null, nama: string, delta: number) => {
-    setCartRaw((prev) =>
-      prev
-        .map((c) => {
-          const cocok = c.menu_item_id === menuItemId && c.nama_produk === nama;
-          return cocok ? { ...c, qty: c.qty + delta } : c;
-        })
-        .filter((c) => c.qty > 0)
-    );
-  };
-
-  const kurang = (item: MenuItem) => ubahQty(item.id, item.nama, -1);
-
-  const kosongkan = () => {
-    setCartRaw([]);
-    setDiskonPresetId(null);
-    setDiskonPersen(0);
-    setKeranjangBuka(false);
-  };
-
-  function handleDiskonChange(presetId: number | null, persen: number) {
-    setDiskonPresetId(presetId);
-    setDiskonPersen(persen);
-  }
-
-  const bukaStrukDari = async (transaksiId: number) => {
-    const [trx, items] = await Promise.all([
-      getTransaksiById(transaksiId),
-      getItemsByTransaksi(transaksiId),
-    ]);
-    setTrxSelesai(trx);
-    setItemsSelesai(items);
-    setStrukBuka(true);
-  };
-
-  // ── Bayar ──
-  const bayar = async (paymentMethod: PaymentMethod, uangDiterima: number | null) => {
-    if (cartRaw.length === 0) return;
-
-    // Jalur QRIS digital → buka dialog QR, bukan langsung tulis transaksi.
-    if (paymentMethod === 'qris' && features.qris) {
-      if (!pgReady) {
-        Alert.alert('QRIS belum siap', 'Atur penyedia di Pengaturan → Pembayaran QRIS.');
-        return;
-      }
-      setKeranjangBuka(false);
-      setQrisBuka(true);
-      await pay.mulai({
-        cart,
-        diskonPresetId,
-        diskonPersen,
-        label: config?.nama_umkm ?? 'Pembayaran',
-      });
-      return;
-    }
-
-    // Jalur cash / non-digital → simpan langsung (perilaku lama).
-    try {
-      const hasil = await simpanTransaksi({
-        items: cart,
-        diskonPresetId,
-        diskonPersen,
-        paymentMethod,
-        uangDiterima,
-      });
-      await bukaStrukDari(hasil.transaksiId);
-      setKeranjangBuka(false);
-      setCartRaw([]);
-      setDiskonPresetId(null);
-      setDiskonPersen(0);
-    } catch {
-      Alert.alert('Gagal', 'Transaksi gagal disimpan. Coba lagi.');
-    }
-  };
-
-  // QRIS paid → buka struk dari transaksi yang ditulis state machine.
-  const onQrisPaid = async () => {
-    const tid = pay.hasilSettle?.transaksiId;
-    setQrisBuka(false);
-    if (tid) await bukaStrukDari(tid);
-    setCartRaw([]);
-    setDiskonPresetId(null);
-    setDiskonPersen(0);
-    pay.reset();
-    await muat();
-  };
-
-  const onQrisTutup = async () => {
-    setQrisBuka(false);
-    await pay.batal();
-    await muat();
-  };
-
-  const onQrisBuatUlang = async () => {
-    await pay.mulai({
-      cart,
-      diskonPresetId,
-      diskonPersen,
-      label: config?.nama_umkm ?? 'Pembayaran',
-    });
-  };
-
-  // ── Cetak ──
   const cetak = async () => {
     if (!config || !trxSelesai) return;
     if (!printerTersedia()) {
-      Alert.alert('Printer tidak tersedia', 'Cetak struk hanya berjalan di build Android dengan printer bluetooth.');
+      Alert.alert(
+        'Printer tidak tersedia',
+        'Cetak struk hanya berjalan di build Android dengan printer bluetooth.',
+      );
       return;
     }
     setMencetak(true);
     try {
-      const devices = await getPairedDevices();
-      if (devices.length === 0) {
-        Alert.alert('Printer tidak ditemukan', 'Pair printer thermal di pengaturan Bluetooth HP terlebih dahulu.');
-        return;
+      // Satu pintu: cari device + cetak + dapat nama printer.
+      const res = await cetakStrukKePrinter(config, trxSelesai, itemsSelesai);
+      if (res.ok) {
+        toast.success(res.pesan); // "Struk terkirim ke <nama printer>."
+      } else {
+        Alert.alert('Gagal cetak', res.pesan);
       }
-      const ok = await connectPrinter(devices[0].address);
-      if (!ok) { Alert.alert('Gagal terhubung', 'Periksa Bluetooth dan coba lagi.'); return; }
-      const res = await cetakStruk(config, trxSelesai, itemsSelesai);
-      if (!res.ok) Alert.alert('Gagal cetak', res.pesan);
     } finally {
       setMencetak(false);
     }
   };
 
-  const cartBarBottom = tabBarHeight + Spacing.sm;
-
-  const cartBar = (cartRaw.length > 0 && !keranjangBuka) ? (
+  const cartBar = (
     <Pressable
-      onPress={() => setKeranjangBuka(true)}
-      style={({ pressed }) => [styles.cartBar, { bottom: cartBarBottom }, pressed && styles.cartPressed]}
+      onPress={() => router.push('/kasir/keranjang' as Href)}
+      style={({ pressed }) => [
+        styles.cartBar,
+        { bottom: FAB_BOTTOM },
+        pressed && styles.cartPressed,
+      ]}
     >
       <View style={styles.cartBadge}>
         <Text style={styles.cartBadgeTeks}>{totalQty}</Text>
@@ -256,7 +121,7 @@ export default function KasirScreen() {
       <Text style={styles.cartLabel}>Lihat Keranjang</Text>
       <Text style={styles.cartTotal}>{formatRupiah(grandTotal)}</Text>
     </Pressable>
-  ) : null;
+  );
 
   return (
     <ScreenLayout
@@ -266,19 +131,33 @@ export default function KasirScreen() {
       floating={cartBar}
     >
       {menu.length === 0 ? (
-        <EmptyState
-          icon="menu"
-          judul="Belum ada produk"
-          deskripsi="Tambahkan produk di tab Menu agar bisa mulai berjualan."
-        />
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIconWrap}>
+            <Icon name="menu" size={40} color={Colors.textSubtle} strokeWidth={1.8} />
+          </View>
+          <Text style={styles.emptyJudul}>Belum ada produk</Text>
+          <Pressable
+            style={styles.btnTambah}
+            onPress={() => router.push('/(tabs)/menu' as Href)}
+          >
+            <Icon name="plus" size={18} color={Colors.onPrimary} strokeWidth={2.6} />
+            <Text style={styles.btnTambahTeks}>Tambah Produk</Text>
+          </Pressable>
+          <Text style={styles.emptyDesc}>
+            Tambahkan produk terlebih dahulu agar bisa mulai berjualan.
+          </Text>
+        </View>
       ) : (
         <>
           {kategori.length > 0 && (
             <View style={styles.kategoriBar}>
-              <KategoriList kategori={kategori} aktif={kategoriAktif} onPilih={setKategoriAktif} />
+              <KategoriList
+                kategori={kategori}
+                aktif={kategoriAktif}
+                onPilih={setKategoriAktif}
+              />
             </View>
           )}
-
           {menuTampil.length === 0 ? (
             <EmptyState
               icon="search"
@@ -291,62 +170,82 @@ export default function KasirScreen() {
               qtyMap={qtyMap}
               onTambah={tambah}
               onKurang={kurang}
-              bottomInset={tabBarHeight + 72}
+              bottomInset={LIST_BOTTOM_PADDING}
+              showStok={features.inventory}
             />
           )}
         </>
       )}
 
-      <KeranjangPanel
-        visible={keranjangBuka}
-        cart={cart}
-        cartRaw={cartRaw}
-        presets={presets}
-        diskonPresetId={diskonPresetId}
-        diskonPersen={diskonPersen}
-        qrisReady={pgReady}
-        onTutup={() => setKeranjangBuka(false)}
-        onUbahQty={ubahQty}
-        onUbahDiskon={handleDiskonChange}
-        onBayar={(pm, uang) => { void bayar(pm, uang); }}
-        onKosongkan={kosongkan}
-      />
-
+      {/* StrukPreview tetap modal, dipicu dari store */}
       <StrukPreview
-        visible={strukBuka}
+        visible={strukVisible}
         config={config}
         trx={trxSelesai}
         items={itemsSelesai}
         mencetak={mencetak}
         onCetak={() => { void cetak(); }}
-        onSelesai={() => setStrukBuka(false)}
-      />
-
-      <DialogQris
-        visible={qrisBuka}
-        fase={pay.fase}
-        session={pay.session}
-        sisaDetik={pay.sisaDetik}
-        error={pay.error}
-        jaringanBermasalah={pay.jaringanBermasalah}
-        amount={grandTotal}
-        onTutup={() => { void onQrisTutup(); }}
-        onBuatUlang={() => { void onQrisBuatUlang(); }}
-        onPaid={() => { void onQrisPaid(); }}
-        onStartPolling={pay.startPolling}
-        onStopPolling={pay.stopPolling}
+        onSelesai={tutupStruk}
       />
     </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.lg,
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyJudul: {
+    fontSize: FontSize.lg,
+    fontWeight: '800',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  btnTambah: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    height: 52,
+    borderRadius: Radii.md,
+    ...shadow(2),
+  },
+  btnTambahTeks: {
+    color: Colors.onPrimary,
+    fontWeight: '800',
+    fontSize: FontSize.md,
+  },
+  emptyDesc: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 280,
+  },
   kategoriBar: { paddingLeft: Spacing.lg, paddingBottom: Spacing.sm },
   cartBar: {
-    position: 'absolute', left: Spacing.lg, right: Spacing.lg,
-    backgroundColor: Colors.primary, borderRadius: Radii.lg,
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.lg,
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    backgroundColor: Colors.primary,
+    borderRadius: Radii.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
     gap: Spacing.md,
     ...shadow(3),
     zIndex: 20,
@@ -354,10 +253,28 @@ const styles = StyleSheet.create({
   },
   cartPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   cartBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)', minWidth: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    minWidth: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
-  cartBadgeTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.sm },
-  cartLabel: { flex: 1, color: Colors.onPrimary, fontWeight: '700', fontSize: FontSize.md },
-  cartTotal: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.lg },
+  cartBadgeTeks: {
+    color: Colors.onPrimary,
+    fontWeight: '800',
+    fontSize: FontSize.sm,
+  },
+  cartLabel: {
+    flex: 1,
+    color: Colors.onPrimary,
+    fontWeight: '700',
+    fontSize: FontSize.md,
+  },
+  cartTotal: {
+    color: Colors.onPrimary,
+    fontWeight: '800',
+    fontSize: FontSize.lg,
+  },
 });

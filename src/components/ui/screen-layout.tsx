@@ -1,35 +1,9 @@
 /**
  * screen-layout.tsx — KERANGKA HALAMAN yang konsisten.
  *
- * MASALAH yang diselesaikan:
- *   Sebelumnya tiap halaman menulis ulang header (judul + subjudul + tombol
- *   kanan) dengan padding/varian sendiri-sendiri → tidak konsisten & gampang
- *   konflik dengan elemen melayang (FAB, cart bar). Footer pun ditangani ad-hoc.
- *
- * SOLUSI (sejajar dengan BottomSheet):
- *   Komponen ini menyediakan STRUKTUR yang sama dengan drawer:
- *       ┌───────────────────────────────┐
- *       │ HEADER  (title, subtitle, →)  │  ← tetap, tidak ikut scroll
- *       ├───────────────────────────────┤
- *       │ BODY    (children / scroll)   │  ← area konten fleksibel
- *       ├───────────────────────────────┤
- *       │ FOOTER  (opsional)            │  ← tetap menempel di bawah
- *       └───────────────────────────────┘
- *
- *   Dengan begitu Halaman & Drawer memakai pola header/footer yang SAMA →
- *   rapi, konsisten, dan elemen melayang punya tempat yang jelas (footer slot
- *   atau lewat prop `floating`).
- *
- * CARA PAKAI:
- *   <ScreenLayout
- *     title="Kasir"
- *     subtitle="Pilih produk untuk mulai transaksi"
- *     headerRight={<...>}
- *     footer={<TombolBayar/>}      // opsional, menempel di bawah
- *     floating={<CartBar/>}        // opsional, melayang di atas footer/body
- *   >
- *     ...konten...
- *   </ScreenLayout>
+ * PERUBAHAN Phase 5.2:
+ *   - Tambah `pointerEvents="box-none"` pada View body agar elemen
+ *     floating (FAB, cart bar) tidak terblokir oleh container body.
  */
 import React from 'react';
 import type { ViewStyle } from 'react-native';
@@ -42,14 +16,10 @@ export interface ScreenLayoutProps {
   title?: string;
   subtitle?: string;
   headerRight?: React.ReactNode;
-  /** Footer tetap (mis. tombol aksi utama). Tidak ikut scroll. */
   footer?: React.ReactNode;
-  /** Elemen melayang (mis. cart bar / FAB) — dirender absolut di dalam body. */
   floating?: React.ReactNode;
   children: React.ReactNode;
-  /** Safe area edges. Default ['top']. Halaman tab cukup 'top'. */
   edges?: Edge[];
-  /** Padding horizontal body (default Spacing.lg). 0 untuk full-bleed (FlatList). */
   bodyPadding?: number;
   style?: ViewStyle;
 }
@@ -72,16 +42,27 @@ export default function ScreenLayout({
       {hasHeader && (
         <View style={styles.header}>
           <View style={styles.headerText}>
-            {!!title && <Text style={styles.title} numberOfLines={1}>{title}</Text>}
-            {!!subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
+            {!!title && (
+              <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            )}
+            {!!subtitle && (
+              <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            )}
           </View>
-          {!!headerRight && <View style={styles.headerRight}>{headerRight}</View>}
+          {!!headerRight && (
+            <View style={styles.headerRight}>{headerRight}</View>
+          )}
         </View>
       )}
 
-      <View style={[styles.body, { paddingHorizontal: bodyPadding }]}>
+      {/* pointerEvents="box-none": View tidak meng-intercept touch,
+          tapi children (termasuk floating) tetap menerima touch.
+          Ini penting agar cart bar & FAB bisa ditekan. */}
+      <View
+        style={[styles.body, { paddingHorizontal: bodyPadding }]}
+        pointerEvents="box-none"
+      >
         {children}
-        {/* Slot melayang: absolut, tidak mengganggu layout konten. */}
         {!!floating && floating}
       </View>
 
@@ -103,7 +84,11 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.text },
   subtitle: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   body: { flex: 1 },
   footer: {
     borderTopWidth: 1,

@@ -3,61 +3,86 @@
     "name": "POS UMKM",
     "slug": "pos-umkm",
     "version": "1.0.0",
-    "scheme": "posumkm",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FBF7F2"
-    },
+    "scheme": "posumkm",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.posumkm.app",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "Aplikasi memakai Bluetooth untuk menyambung ke printer struk thermal.",
-        "NSBluetoothPeripheralUsageDescription": "Aplikasi memakai Bluetooth untuk mencetak struk ke printer thermal."
+        "NSFaceIDUsageDescription": "Membuka aplikasi kasir dengan Face ID."
       }
     },
     "android": {
       "package": "com.posumkm.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FBF7F2"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#FAF7F2"
       },
       "permissions": [
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH_SCAN",
-        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.USE_FINGERPRINT"
       ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FAF7F2",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-sqlite",
       "expo-secure-store",
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Aplikasi memakai Face ID untuk membuka kunci aplikasi."
+          "faceIDPermission": "Membuka aplikasi kasir dengan Face ID."
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#C75B39"
+          "color": "#C75B39",
+          "defaultChannel": "stock-alert",
+          "sounds": [
+            "./assets/custom_sound.wav"
+          ]
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
+      "expo-iap",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
+      "router": {},
       "eas": {
         "projectId": "2228d75c-7503-4a64-9963-d309e2d13bee"
       }

@@ -1,5 +1,5 @@
 /**
- * stock.ts — manajemen stok terpusat (migration v3).
+ * stock.ts — manajemen stok terpusat.
  *
  * Semua mutasi stok WAJIB lewat sini agar:
  *   1. menu_item.stok dan stock_log selalu sinkron (ditulis dalam 1 transaksi).

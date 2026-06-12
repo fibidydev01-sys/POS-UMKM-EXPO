@@ -14,6 +14,11 @@
  * notif-module.ts.
  *
  * Semua langkah best-effort: kegagalan tidak boleh menggagalkan boot app.
+ *
+ * Lapis 3 DIHAPUS:
+ *   - checkAndNotifyLowStockBahan dihapus dari re-export
+ *   - notifyOpnameSelisihBahan dihapus dari re-export
+ *   - bahan-notif.ts tidak lagi di-import
  */
 import { loadNotifications, isExpoGo } from './notif-module';
 import { setupChannels } from './channels';
@@ -71,9 +76,7 @@ export { rescheduleStockReminders, cancelStockReminders } from './scheduler';
 
 // Notifikasi PRODUK (level menu, mode 'product').
 export { checkAndNotifyLowStock, notifyOpnameSelisih } from './stock-notif';
-
-// Notifikasi BAHAN (migration v4, mode 'recipe').
-export { checkAndNotifyLowStockBahan, notifyOpnameSelisihBahan } from './bahan-notif';
+// checkAndNotifyLowStockBahan & notifyOpnameSelisihBahan DIHAPUS (lapis 3)
 
 export { setupChannels, CHANNEL_ALERT, CHANNEL_INFO } from './channels';
 export { isExpoGo } from './notif-module';

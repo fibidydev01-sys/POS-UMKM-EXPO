@@ -6,9 +6,15 @@
  * memang dialog tengah sederhana tanpa drag/snap, jadi <Modal> polos paling
  * aman & tidak konflik dengan sheet native.
  *
- * PERUBAHAN v3:
+ * PERUBAHAN v2:
  *   - Ikon ✓ & 🖨 diganti lucide (check, printer).
  *   - Font size dinamis via hitungStrukFont(); kertas auto-size; tombol height 52.
+ *
+ * PERUBAHAN (FINISHING) — Audit B4:
+ *   - TOMBOL "BAGIKAN" baru: Share.share(teksStruk) — struk digital bisa
+ *     dikirim via WhatsApp dll. Krusial untuk UMKM tanpa printer & untuk tester.
+ *   - Layout aksi: [Cetak Struk] full-width, lalu baris [Bagikan][Selesai].
+ *   - Tombol cetak saat loading: spinner + teks "Mencetak…" (bukan spinner polos).
  *
  * Perilaku dipertahankan:
  *  - Tap backdrop SENGAJA tidak menutup.
@@ -17,7 +23,7 @@
 
 import {
   Modal, View, Text, StyleSheet, Pressable, ScrollView,
-  ActivityIndicator, Platform, useWindowDimensions,
+  ActivityIndicator, Platform, useWindowDimensions, Share,
 } from 'react-native';
 import { Colors, FontSize, Radii, Spacing, shadow } from '../../constants/colors';
 import Icon from '../ui/icon';
@@ -51,6 +57,16 @@ export default function StrukPreview({
   const modalWidth = Math.min(windowWidth - MODAL_OUTER_PAD, 460);
   const availableWidth = modalWidth - INNER_PAD - KERTAS_PAD;
   const fontMetrics = hitungStrukFont(config?.paper_width ?? 58, availableWidth);
+
+  // Bagikan struk digital: share sheet OS (WhatsApp, email, salin, dst).
+  const bagikan = async () => {
+    if (!teks) return;
+    try {
+      await Share.share({ message: teks });
+    } catch {
+      // user batal / share gagal — tidak perlu feedback
+    }
+  };
 
   return (
     <Modal
@@ -97,7 +113,10 @@ export default function StrukPreview({
                 style={({ pressed }) => [styles.btnCetak, pressed && styles.pressed]}
               >
                 {mencetak ? (
-                  <ActivityIndicator color={Colors.onPrimary} />
+                  <>
+                    <ActivityIndicator color={Colors.onPrimary} />
+                    <Text style={styles.btnCetakTeks}>Mencetak…</Text>
+                  </>
                 ) : (
                   <>
                     <Icon name="printer" size={18} color={Colors.onPrimary} />
@@ -105,12 +124,23 @@ export default function StrukPreview({
                   </>
                 )}
               </Pressable>
-              <Pressable
-                onPress={onSelesai}
-                style={({ pressed }) => [styles.btnSelesai, pressed && styles.pressed]}
-              >
-                <Text style={styles.btnSelesaiTeks}>Selesai</Text>
-              </Pressable>
+
+              {/* Bagikan (struk digital) + Selesai — sejajar */}
+              <View style={styles.aksiBawah}>
+                <Pressable
+                  onPress={() => { void bagikan(); }}
+                  style={({ pressed }) => [styles.btnBagikan, pressed && styles.pressed]}
+                >
+                  <Icon name="share" size={17} color={Colors.primary} strokeWidth={2.4} />
+                  <Text style={styles.btnBagikanTeks}>Bagikan</Text>
+                </Pressable>
+                <Pressable
+                  onPress={onSelesai}
+                  style={({ pressed }) => [styles.btnSelesai, pressed && styles.pressed]}
+                >
+                  <Text style={styles.btnSelesaiTeks}>Selesai</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>
@@ -141,7 +171,7 @@ const styles = StyleSheet.create({
     marginTop: 2, marginBottom: Spacing.lg,
   },
 
-  kertasWrap: { maxHeight: 320, marginBottom: Spacing.lg },
+  kertasWrap: { maxHeight: 300, marginBottom: Spacing.lg },
   kertasInner: { alignItems: 'center' },
   kertas: {
     backgroundColor: '#FFFFFF', borderRadius: Radii.sm, padding: Spacing.md,
@@ -162,8 +192,17 @@ const styles = StyleSheet.create({
     ...shadow(1),
   },
   btnCetakTeks: { color: Colors.onPrimary, fontWeight: '800', fontSize: FontSize.md },
+  aksiBawah: { flexDirection: 'row', gap: Spacing.md },
+  btnBagikan: {
+    flex: 1, height: 52,
+    backgroundColor: Colors.surface, borderRadius: Radii.lg,
+    flexDirection: 'row', gap: Spacing.sm,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: Colors.primary,
+  },
+  btnBagikanTeks: { color: Colors.primary, fontWeight: '800', fontSize: FontSize.md },
   btnSelesai: {
-    height: 52,
+    flex: 1, height: 52,
     backgroundColor: Colors.surface, borderRadius: Radii.lg,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.border,

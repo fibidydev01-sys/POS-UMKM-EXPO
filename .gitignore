@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+env/
 .env
 .env*.local
 
@@ -44,3 +45,9 @@ yarn-error.*
 # collector and docs output
 collection/
 docs/
+legal/
+scripts/
+supabase/
+
+# Google Service Account (private key)
+google-service-account.json

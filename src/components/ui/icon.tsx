@@ -10,6 +10,11 @@
  * Mapping nama → komponen lucide ada di tabel REGISTRY di bawah. Untuk
  * menambah ikon baru: impor dari 'lucide-react-native' lalu daftarkan namanya.
  *
+ * PERUBAHAN (FINISHING):
+ *   - Tambah 'share' (Share2)   → tombol "Bagikan" struk digital.
+ *   - Tambah 'wifi' / 'wifi-off' (Wifi / WifiOff) → badge status koneksi
+ *     di layar aktivasi.
+ *
  * CATATAN DEPENDENCY (tambahkan jika belum ada):
  *   npx expo install lucide-react-native react-native-svg
  */
@@ -20,7 +25,7 @@ import {
   Printer, Trash2, Plus, Minus, Check, ChevronRight, ChevronLeft,
   Search, PackageOpen, Save, KeyRound, Download, Upload, AlertTriangle,
   X, BadgePercent, Percent, Store, Phone, MapPin, FileText, Banknote,
-  Smartphone, Landmark, CreditCard,
+  Smartphone, Landmark, CreditCard, Share2, Wifi, WifiOff,
   type LucideIcon,
 } from 'lucide-react-native';
 
@@ -31,7 +36,8 @@ export type IconName =
   | 'printer' | 'trash' | 'plus' | 'minus' | 'check' | 'chevron-right' | 'chevron-left'
   | 'search' | 'empty-box' | 'save' | 'key' | 'download' | 'upload' | 'warning'
   | 'close' | 'badge-percent' | 'percent' | 'store' | 'phone' | 'map-pin' | 'file' | 'banknote'
-  | 'smartphone' | 'landmark' | 'credit-card';
+  | 'smartphone' | 'landmark' | 'credit-card'
+  | 'share' | 'wifi' | 'wifi-off';
 
 const REGISTRY: Record<IconName, LucideIcon> = {
   home: Home,
@@ -71,6 +77,9 @@ const REGISTRY: Record<IconName, LucideIcon> = {
   smartphone: Smartphone,
   landmark: Landmark,
   'credit-card': CreditCard,
+  share: Share2,
+  wifi: Wifi,
+  'wifi-off': WifiOff,
 };
 
 export interface IconProps {

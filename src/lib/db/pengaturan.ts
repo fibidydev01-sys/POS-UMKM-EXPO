@@ -1,15 +1,8 @@
 /**
  * pengaturan.ts — akses konfigurasi UMKM (key-value di tabel pengaturan).
- *
- * SUMBER KEBENARAN field: nama_umkm, alamat, no_telp, footer_struk, paper_width,
- *                         tier, umkm_id.
- *
- * PERUBAHAN (QRIS local-first):
- *   - getConfig() mengembalikan tier + umkm_id.
- *   - setKonfigBanyak() untuk menyimpan beberapa key sekaligus (dipakai aktivasi).
- *   - getTier() helper untuk feature flags.
+ * Setelah drop V2: tidak ada field tier, tidak ada normalTier(), getTier().
  */
-import type { UmkmConfig, Tier } from './database';
+import type { UmkmConfig } from './database';
 import { getDb } from './database';
 
 export interface ProfilInput {
@@ -39,40 +32,28 @@ async function setKey(key: string, value: string): Promise<void> {
   );
 }
 
-function normalTier(t?: string): Tier {
-  return t === 'v3' ? 'v3' : t === 'v2' ? 'v2' : 'v1';
-}
-
 export async function getConfig(): Promise<UmkmConfig> {
   const m = await getAll();
   return {
-    nama_umkm: m.nama_umkm ?? 'Warung Saya',
-    alamat: m.alamat ?? '',
-    no_telp: m.no_telp ?? '',
-    footer_struk: m.footer_struk ?? '',
-    paper_width: parseInt(m.paper_width ?? '58', 10) || 58,
-    app_version: m.app_version ?? 'v1.0',
-    tier: normalTier(m.tier),
-    umkm_id: m.umkm_id ? m.umkm_id : null,
-    activated: m.activated === '1',
+    nama_umkm:       m.nama_umkm      ?? 'Warung Saya',
+    alamat:          m.alamat         ?? '',
+    no_telp:         m.no_telp        ?? '',
+    footer_struk:    m.footer_struk   ?? '',
+    paper_width:     parseInt(m.paper_width ?? '58', 10) || 58,
+    app_version:     m.app_version    ?? 'v1.0',
+    umkm_id:         m.umkm_id ? m.umkm_id : null,
+    activated:       m.activated === '1',
     activation_code: m.activation_code ? m.activation_code : null,
+    // tier tidak ada lagi
   };
 }
 
-export async function getTier(): Promise<Tier> {
-  const m = await getAll();
-  return normalTier(m.tier);
-}
-
-/**
- * Update profil. Hanya field yang dikirim (tidak undefined) yang ditulis.
- */
 export async function updateProfil(input: ProfilInput): Promise<void> {
-  if (input.nama_umkm !== undefined) await setKey('nama_umkm', (input.nama_umkm ?? '').trim());
-  if (input.alamat !== undefined) await setKey('alamat', (input.alamat ?? '').trim());
-  if (input.no_telp !== undefined) await setKey('no_telp', (input.no_telp ?? '').trim());
+  if (input.nama_umkm    !== undefined) await setKey('nama_umkm', (input.nama_umkm ?? '').trim());
+  if (input.alamat       !== undefined) await setKey('alamat', (input.alamat ?? '').trim());
+  if (input.no_telp      !== undefined) await setKey('no_telp', (input.no_telp ?? '').trim());
   if (input.footer_struk !== undefined) await setKey('footer_struk', input.footer_struk ?? '');
-  if (input.paper_width !== undefined) await setKey('paper_width', String(input.paper_width));
+  if (input.paper_width  !== undefined) await setKey('paper_width', String(input.paper_width));
 }
 
 export async function updatePaperWidth(width: number): Promise<void> {
@@ -84,7 +65,6 @@ export async function setActivation(code: string): Promise<void> {
   await setKey('activation_code', code);
 }
 
-/** Simpan beberapa key sekaligus (dipakai oleh activation client). */
 export async function setKonfigBanyak(entries: Record<string, string>): Promise<void> {
   const db = getDb();
   await db.withTransactionAsync(async () => {
